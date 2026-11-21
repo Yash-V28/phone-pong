@@ -195,7 +195,7 @@
       image-rendering: crisp-edges;
     }
 
-    #overlay {
+    #overlay, #pause-menu {
       position: absolute;
       inset: 0;
       display: flex;
@@ -216,6 +216,14 @@
     #winner.red { color: var(--red); }
     #winner.blue { color: var(--blue); }
     #overlay .btn, #overlay .hint, #overlay .mode-btn { position: relative; }
+
+    /* Host pause: small PAUSE button over the table, and the PAUSED menu. */
+    #pause-btn { position: absolute; top: 10px; right: 10px; padding: 0.4rem 0.6rem; font-size: 0.5rem; }
+    #pause-title {
+      font-size: clamp(1.4rem, 6vw, 3.5rem);
+      color: var(--gold);
+      text-shadow: 4px 4px 0 #000, 8px 8px 0 rgba(0, 0, 0, 0.4);
+    }
 
     /* Low-res canvas scaled up, so the confetti is chunky pixels. */
     #confetti {
@@ -306,6 +314,13 @@
 
   <section id="game-screen" class="screen hidden">
     <canvas id="game" width="800" height="500"></canvas>
+    <button id="pause-btn" class="mode-btn">PAUSE</button>
+    <div id="pause-menu" class="hidden">
+      <p id="pause-title">PAUSED</p>
+      <button id="resume-btn" class="btn">RESUME</button>
+      <button id="menu-btn" class="mode-btn">BACK TO MENU</button>
+      <p class="hint">P / ESC TO RESUME</p>
+    </div>
     <div id="overlay" class="hidden">
       <canvas id="confetti" width="200" height="125"></canvas>
       <p id="winner">PLAYER 1 WINS</p>
@@ -379,6 +394,7 @@
     const smashAt = { 1: -Infinity, 2: -Infinity, 3: -Infinity, 4: -Infinity }; // last phone shake (s)
     let serveTimer = 0, serveDir = 1;
     let pausedBy = null;       // player number who tapped PAUSE on their phone, or null
+    let hostPaused = false;    // PAUSE menu open on the host (P / Esc / PAUSE button)
     const keys = new Set();
 
     function show(name) {
@@ -461,6 +477,15 @@
       socket.emit("paused", { room: roomCode, by: pausedBy || 0 });
     }
     socket.on("pause", ({ player }) => togglePause(player));
+
+    // Host PAUSE menu: freezes the match until RESUME (or P / Esc again).
+    function setHostPause(on) {
+      if (on && !["serve", "play", "paused"].includes(phase)) return; // only mid-match
+      hostPaused = on;
+      keys.clear();
+      $("pause-menu").classList.toggle("hidden", !on);
+      if (on) $("resume-btn").focus();
+    }
 
     // Captain's phone tapped CHANGE MODE on the win screen.
     socket.on("change_mode", ({ player }) => {
@@ -581,6 +606,7 @@
     // Back to the lobby (not enough players for a rematch, or the captain wants a new mode).
     function backToLobby() {
       pausedBy = null;
+      setHostPause(false);
       overlay.classList.add("hidden");
       phase = "lobby";
       socket.emit("lobby_open", { room: roomCode });
@@ -839,7 +865,7 @@
     }
 
     function update(dt) {
-      if (pausedBy !== null) return; // frozen until a phone taps PAUSE again
+      if (pausedBy !== null || hostPaused) return; // frozen until PAUSE is tapped again / RESUME
 
       // Keyboard fallback
       const dir1 = (keys.has("s") ? 1 : 0) - (keys.has("w") ? 1 : 0);
@@ -1522,7 +1548,12 @@
 
     window.addEventListener("keydown", (e) => {
       const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
-      if (GAME_KEYS.includes(key)) {
+      if ((key === "p" || key === "Escape") && (hostPaused || ["serve", "play", "paused"].includes(phase))) {
+        setHostPause(!hostPaused);
+        e.preventDefault();
+      } else if (hostPaused) {
+        return; // no paddle keys while the PAUSE menu is open
+      } else if (GAME_KEYS.includes(key)) {
         keys.add(key);
         e.preventDefault();
       } else if (key === " " && phase === "lobby") {
@@ -1542,6 +1573,9 @@
     $("start-btn").addEventListener("click", openLobby);
     $("again-btn").addEventListener("click", playAgain);
     $("change-mode-btn").addEventListener("click", backToLobby);
+    $("pause-btn").addEventListener("click", () => setHostPause(true));
+    $("resume-btn").addEventListener("click", () => setHostPause(false));
+    $("menu-btn").addEventListener("click", backToLobby); // ends the match; phones go back to waiting
     $("lobby-start").addEventListener("click", () => { initAudio(); if (lobbyReady()) startMatch(); });
     for (const btn of document.querySelectorAll("[data-mode]")) {
       btn.addEventListener("click", () => chooseMode(btn.dataset.mode, difficulty));
