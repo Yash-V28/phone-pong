@@ -8,13 +8,15 @@ Socket.IO contract:
   phone -> server: paddle {room, y}       (y: 0 top .. 1 bottom)
   phone -> server: smash {room}           (player shook the phone)
   phone -> server: rematch {room}         (REMATCH tapped after a match)
+  phone -> server: latency_ping {room}    (acked straight back, so the phone can time it)
+  phone -> server: latency {room, ms}     (the round trip it measured)
   host  -> server: create_room {room}
   host  -> server: score {room, p1, p2}
   host  -> server: smash_landed {room, player}
   host  -> server: hit {room, player, type: "hit"|"concede"}
   host  -> server: game_over {room, winner}, match_start {room}
   server -> host:  player_joined {player}, player_left {player}, paddle {player, y},
-                   smash {player}, rematch {player}
+                   smash {player}, rematch {player}, latency {player, ms}
   server -> phones: score {p1, p2}, game_over {winner}, match_start {}
   server -> one phone: smash_landed {}, hit {type}
 """
@@ -140,8 +142,8 @@ def handle_paddle(data):
         socketio.emit("paddle", {"player": number, "y": y}, to=host)
 
 
-def phone_to_host(data, event):
-    """Forward a phone's event to its room's host as {player}. Returns nothing."""
+def phone_to_host(data, event, extra=None):
+    """Forward a phone's event to its room's host as {player, **extra}."""
     code = normalise_code(data)
     if not code:
         return
@@ -152,7 +154,7 @@ def phone_to_host(data, event):
         number = player_for(room, request.sid)
         host = room["host"]
     if number is not None:
-        socketio.emit(event, {"player": number}, to=host)
+        socketio.emit(event, {"player": number, **(extra or {})}, to=host)
 
 
 def host_to_phone(data, event, payload=None):
@@ -185,6 +187,21 @@ def handle_hit(data):
     kind = data.get("type") if isinstance(data, dict) else None
     if kind in ("hit", "concede"):
         host_to_phone(data, "hit", {"type": kind})
+
+
+@socketio.on("latency_ping")
+def handle_latency_ping(data):
+    # Returning a value sends it as the Socket.IO acknowledgement: an immediate echo.
+    return True
+
+
+@socketio.on("latency")
+def handle_latency(data):
+    try:
+        ms = max(0, min(9999, int(data.get("ms"))))
+    except (AttributeError, TypeError, ValueError):
+        return
+    phone_to_host(data, "latency", {"ms": ms})
 
 
 @socketio.on("rematch")

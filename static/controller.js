@@ -6,6 +6,7 @@
 //   emit  paddle {room, y}
 //   emit  smash  {room}          (phone was shaken; 1 s cooldown)
 //   emit  rematch {room}         (REMATCH tapped on the game-over screen)
+//   emit  latency_ping {room} (acked by the server) then latency {room, ms}, every 2 s
 //   on    score  {p1, p2}
 //   on    smash_landed           (our smash hit the ball: flash the screen)
 //   on    hit    {type}          ("hit": our bat struck the ball, "concede": we lost a point)
@@ -20,6 +21,7 @@
   const ROOM_FULL_RETRY_MS = 3000;
   const SMASH_THRESHOLD = 18;  // m/s² of movement (gravity removed) that counts as a shake
   const SMASH_COOLDOWN_MS = 1000;
+  const LATENCY_INTERVAL_MS = 2000;
 
   const statusEl = document.getElementById("status");
   const roomEl = document.getElementById("room-code");
@@ -176,6 +178,15 @@
       socket.emit("paddle", { room, y });
     }
   }, SEND_INTERVAL_MS);
+
+  // Measure the round trip to the server and report it, so the host can display it.
+  setInterval(() => {
+    if (!player || !socket.connected) return;
+    const sent = performance.now();
+    socket.emit("latency_ping", { room }, () => {
+      socket.emit("latency", { room, ms: Math.round(performance.now() - sent) });
+    });
+  }, LATENCY_INTERVAL_MS);
 
   // ---- Tilt controls ----
   let motionSeen = false;

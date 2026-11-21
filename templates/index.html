@@ -190,6 +190,19 @@
       pointer-events: none;
     }
 
+    /* Live phone round-trip times, bottom-right corner */
+    #latency {
+      position: fixed;
+      right: 12px;
+      bottom: 10px;
+      font-size: 0.5rem;
+      color: var(--muted);
+      background: rgba(0, 0, 0, 0.55);
+      padding: 0.4rem 0.6rem;
+    }
+    #latency .p1 { color: var(--red); }
+    #latency .p2 { color: var(--blue); }
+
     /* Faint CRT scanlines for retro feel */
     body::after {
       content: "";
@@ -243,6 +256,8 @@
       <p class="hint">OR TAP REMATCH ON A PHONE</p>
     </div>
   </section>
+
+  <div id="latency" class="hidden"></div>
 
   <!-- Socket.IO JS client v4 matches Flask-SocketIO 5.x -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js"></script>
@@ -341,6 +356,8 @@
     socket.on("player_left", ({ player }) => {
       if (player !== 1 && player !== 2) return;
       setJoined(player, false);
+      latency[player] = null;
+      showLatency();
       if (!keyboardMode && (phase === "serve" || phase === "play")) phase = "paused";
     });
 
@@ -350,6 +367,22 @@
       // A held key wins over the phone, so keyboard testing works alongside phones.
       if (keyHeld(player)) return;
       p.target = Math.min(1, Math.max(0, y));
+    });
+
+    // ---- Live latency (round trip phone <-> server, measured on the phone) ----
+    const latency = { 1: null, 2: null };
+
+    function showLatency() {
+      const parts = [1, 2].filter((p) => latency[p] !== null)
+        .map((p) => `<span class="p${p}">P${p}</span> ${latency[p]}ms`);
+      $("latency").innerHTML = parts.join(" &middot; ");
+      $("latency").classList.toggle("hidden", parts.length === 0);
+    }
+
+    socket.on("latency", ({ player, ms }) => {
+      if ((player !== 1 && player !== 2) || typeof ms !== "number") return;
+      latency[player] = ms;
+      showLatency();
     });
 
     socket.on("rematch", () => {
