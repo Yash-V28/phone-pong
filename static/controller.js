@@ -3,7 +3,7 @@
 // Socket.IO contract (phone side):
 //   emit  join   {room, id, player} -> receive "joined" {player: 1|2} or "room_full"
 //         (id + last player number let a rejoining phone reclaim its old slot)
-//   emit  paddle {room, y}
+//   emit  paddle {room, y, spin}   (spin -1..1 from twisting the phone, or dragging sideways)
 //   emit  smash  {room}          (phone was shaken; 1 s cooldown)
 //   emit  rematch {room}         (REMATCH tapped on the game-over screen)
 //   emit  latency_ping {room} (acked by the server) then latency {room, ms}, every 2 s
@@ -22,6 +22,9 @@
   const SMASH_THRESHOLD = 18;  // m/s² of movement (gravity removed) that counts as a shake
   const SMASH_COOLDOWN_MS = 1000;
   const LATENCY_INTERVAL_MS = 2000;
+  const TWIST_RANGE = 30;      // sideways roll (gamma) for full spin, degrees from the centre
+  const TWIST_DEAD_ZONE = 4;   // small wobbles in the roll don't add spin
+  const DRAG_SPIN_WIDTH = 0.35; // dragging sideways this fraction of the pad = full spin
 
   const statusEl = document.getElementById("status");
   const roomEl = document.getElementById("room-code");
@@ -36,12 +39,16 @@
   const hintEl = document.getElementById("hint");
   const pad = document.getElementById("pad");
   const paddleEl = document.getElementById("paddle");
+  const spinFillEl = document.getElementById("spin-fill");
 
   const room = (new URLSearchParams(location.search).get("room") || "").trim();
 
   let player = null;     // 1 or 2 once joined
   let y = 0.5;           // current paddle position
   let dragging = false;  // finger on the pad overrides tilt
+  let twistSpin = 0;     // -1..1 from rolling the phone left/right
+  let dragSpin = 0;      // -1..1 from dragging sideways
+  let dragStartX = 0;
 
   const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 
@@ -56,6 +63,16 @@
     flashEl.classList.remove("on");
     void flashEl.offsetWidth; // force reflow so the animation replays
     flashEl.classList.add("on");
+  }
+
+  // Spin sent to the game: the finger wins while dragging, otherwise the twist.
+  const currentSpin = () => (dragging ? dragSpin : twistSpin);
+
+  // Spin meter: a bar that fills left (negative) or right (positive) from the middle.
+  function showSpin(s) {
+    const pct = Math.abs(s) * 50;
+    spinFillEl.style.left = `${s < 0 ? 50 - pct : 50}%`;
+    spinFillEl.style.width = `${pct}%`;
   }
 
   function setY(value) {
@@ -175,8 +192,9 @@
   // Stream the paddle position while we hold a player slot.
   setInterval(() => {
     if (player && socket.connected) {
-      socket.emit("paddle", { room, y });
+      socket.emit("paddle", { room, y, spin: Math.round(currentSpin() * 100) / 100 });
     }
+    showSpin(currentSpin());
   }, SEND_INTERVAL_MS);
 
   // Measure the round trip to the server and report it, so the host can display it.
@@ -192,6 +210,8 @@
   let motionSeen = false;
   let centreBeta = null; // phone angle when ENABLE MOTION was tapped = paddle centre
   let smoothTilt = 0;    // low-pass filtered tilt, in degrees from the centre
+  let centreGamma = 0;   // sideways roll at calibration = no spin
+  let smoothTwist = 0;   // low-pass filtered roll, degrees from centreGamma
 
   function onOrientation(e) {
     if (e.beta == null) return;
@@ -199,7 +219,9 @@
     // holding the phone right now becomes the middle of the screen.
     if (centreBeta === null) {
       centreBeta = e.beta;
+      centreGamma = e.gamma || 0;
       smoothTilt = 0;
+      smoothTwist = 0;
     }
     motionSeen = true;
     // Wrap the difference into [-180, 180) in case it crosses the ±180 seam.
@@ -207,6 +229,14 @@
     // Low-pass filter to smooth out sensor jitter (keeps running while dragging,
     // so letting go doesn't jump to a stale value).
     smoothTilt += (tilt - smoothTilt) * TILT_SMOOTHING;
+
+    // TWIST TO SPIN: sideways roll (gamma) from the calibrated centre, with a dead zone.
+    if (e.gamma != null) {
+      smoothTwist += (e.gamma - centreGamma - smoothTwist) * TILT_SMOOTHING;
+      const twist = Math.max(0, Math.abs(smoothTwist) - TWIST_DEAD_ZONE);
+      twistSpin = clamp(Math.sign(smoothTwist) * twist / (TWIST_RANGE - TWIST_DEAD_ZONE), -1, 1);
+    }
+
     if (dragging) return;
     // Dead zone: small wobbles near the centre are ignored. Subtracting it
     // keeps the response continuous at its edge.
@@ -245,7 +275,7 @@
     window.addEventListener("devicemotion", onMotion);
     motionBtn.textContent = "MOTION ON";
     motionBtn.disabled = true;
-    hintEl.textContent = "TILT TO MOVE";
+    hintEl.textContent = "TILT TO MOVE, TWIST TO SPIN";
     recentreBtn.classList.remove("hidden");
     smashHintEl.classList.remove("hidden");
     // Desktop browsers / insecure (http) pages often never fire the event.
@@ -299,8 +329,16 @@
     return (e.clientY - rect.top) / rect.height;
   }
 
+  // Sideways finger movement since touching down = spin (drag diagonally to spin).
+  function spinFromPointer(e) {
+    const width = pad.getBoundingClientRect().width * DRAG_SPIN_WIDTH;
+    return clamp((e.clientX - dragStartX) / width, -1, 1);
+  }
+
   pad.addEventListener("pointerdown", (e) => {
     dragging = true;
+    dragStartX = e.clientX;
+    dragSpin = 0;
     pad.setPointerCapture(e.pointerId);
     setY(yFromPointer(e));
     e.preventDefault();
@@ -309,10 +347,11 @@
   pad.addEventListener("pointermove", (e) => {
     if (!dragging) return;
     setY(yFromPointer(e));
+    dragSpin = spinFromPointer(e);
     e.preventDefault();
   });
 
-  const endDrag = () => { dragging = false; };
+  const endDrag = () => { dragging = false; dragSpin = 0; };
   pad.addEventListener("pointerup", endDrag);
   pad.addEventListener("pointercancel", endDrag);
 

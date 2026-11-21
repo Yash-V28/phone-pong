@@ -5,7 +5,7 @@ Built at KCL FirstYearHack 2026 (Retro Remix).
 Socket.IO contract:
   phone -> server: join {room, id, player} -> "joined" {player: 1|2} or "room_full"
                   (id + last player number let a rejoining phone reclaim its slot)
-  phone -> server: paddle {room, y}       (y: 0 top .. 1 bottom)
+  phone -> server: paddle {room, y, spin} (y: 0 top .. 1 bottom, spin: -1..1 twist)
   phone -> server: smash {room}           (player shook the phone)
   phone -> server: rematch {room}         (REMATCH tapped after a match)
   phone -> server: latency_ping {room}    (acked straight back, so the phone can time it)
@@ -15,7 +15,7 @@ Socket.IO contract:
   host  -> server: smash_landed {room, player}
   host  -> server: hit {room, player, type: "hit"|"concede"}
   host  -> server: game_over {room, winner}, match_start {room}
-  server -> host:  player_joined {player}, player_left {player}, paddle {player, y},
+  server -> host:  player_joined {player}, player_left {player}, paddle {player, y, spin},
                    smash {player}, rematch {player}, latency {player, ms}
   server -> phones: score {p1, p2}, game_over {winner}, match_start {}
   server -> one phone: smash_landed {}, hit {type}
@@ -130,6 +130,8 @@ def handle_paddle(data):
         return
     try:
         y = min(1.0, max(0.0, float(data.get("y"))))
+        # Twist spin from the phone, -1..1 (older controllers don't send it: 0).
+        spin = min(1.0, max(-1.0, float(data.get("spin") or 0)))
     except (TypeError, ValueError):
         return
     with rooms_lock:
@@ -139,7 +141,7 @@ def handle_paddle(data):
         number = player_for(room, request.sid)
         host = room["host"]
     if number is not None:
-        socketio.emit("paddle", {"player": number, "y": y}, to=host)
+        socketio.emit("paddle", {"player": number, "y": y, "spin": spin}, to=host)
 
 
 def phone_to_host(data, event, extra=None):

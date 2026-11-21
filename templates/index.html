@@ -294,6 +294,13 @@
     const PADDLE_LERP = 0.25;  // fraction of the gap to the target closed each frame
     const SMASH_WINDOW = 0.4;  // seconds after a phone shake in which a hit becomes a smash
     const SMASH_BOOST = 1.8;   // smash shot speed multiplier (that one shot only)
+    // Spin: -1..1 on the ball. It bends the ball sideways (y) and fades over time.
+    const SPIN_FROM_BAT = 1 / 1400; // spin per px/s of bat vertical speed at contact
+    const SPIN_FROM_TWIST = 0.7;    // spin from a full phone twist (-1..1)
+    const SPIN_DEAD_ZONE = 0.15;    // gentle hits below this have no spin
+    const SPIN_CURVE = 520;         // sideways acceleration at full spin, px/s^2
+    const SPIN_DECAY = 0.9;         // spin fades by e^(-SPIN_DECAY * seconds)
+    const SPIN_HEAVY = 0.7;         // show "SPIN!" at or above this
     const CODE_LETTERS = "ABCDEFGHJKLMNPQRSTUVWXYZ"; // no I/O, easy to read aloud
 
     const $ = (id) => document.getElementById(id);
@@ -307,10 +314,14 @@
     let phase = "home";        // home | lobby | serve | play | paused | over
     let keyboardMode = false;  // started with SPACE, so no phones are required
     const joined = { 1: false, 2: false };
-    const paddles = { 1: { y: 0.5, target: 0.5 }, 2: { y: 0.5, target: 0.5 } };
+    // twist = phone twist spin (-1..1); vel = bat's vertical speed in px/s (for swipe spin).
+    const paddles = {
+      1: { y: 0.5, target: 0.5, twist: 0, vel: 0 },
+      2: { y: 0.5, target: 0.5, twist: 0, vel: 0 },
+    };
     const score = { 1: 0, 2: 0 };
     // speed is the rally's base speed; smash = this shot was smashed (moves SMASH_BOOST x faster).
-    const ball = { x: 0, y: 0, vx: 0, vy: 0, speed: START_SPEED, smash: false };
+    const ball = { x: 0, y: 0, vx: 0, vy: 0, speed: START_SPEED, smash: false, spin: 0 };
     let rally = 0;             // bat hits since the last serve
     const smashAt = { 1: -Infinity, 2: -Infinity }; // when each phone last shook (seconds)
     let serveTimer = 0, serveDir = 1;
@@ -377,9 +388,10 @@
       if (!keyboardMode && (phase === "serve" || phase === "play")) phase = "paused";
     });
 
-    socket.on("paddle", ({ player, y }) => {
+    socket.on("paddle", ({ player, y, spin }) => {
       const p = paddles[player];
       if (!p || typeof y !== "number") return;
+      p.twist = typeof spin === "number" ? Math.min(1, Math.max(-1, spin)) : 0;
       // A held key wins over the phone, so keyboard testing works alongside phones.
       if (keyHeld(player)) return;
       p.target = Math.min(1, Math.max(0, y));
@@ -477,6 +489,7 @@
       ball.vx = ball.vy = 0;
       ball.speed = START_SPEED;
       ball.smash = false;
+      ball.spin = 0;
       rally = 0;
       smashAt[1] = smashAt[2] = -Infinity;
       serveTimer = SERVE_DELAY;
@@ -549,6 +562,15 @@
       ball.vx = dir * speed * Math.cos(angle);
       ball.vy = speed * Math.sin(angle);
       ball.x = player === 1 ? paddleX(1) + PADDLE_W : paddleX(2) - BALL;
+
+      // Spin = how fast the bat was moving up/down at contact + the phone's twist.
+      // Each hit replaces the old spin. Small amounts are ignored (dead zone).
+      const p = paddles[player];
+      let spin = p.vel * SPIN_FROM_BAT + p.twist * SPIN_FROM_TWIST;
+      spin = Math.max(-1, Math.min(1, spin));
+      ball.spin = Math.abs(spin) < SPIN_DEAD_ZONE ? 0 : spin;
+      if (!ball.smash && Math.abs(ball.spin) >= SPIN_HEAVY) spinFx(player);
+
       if (ball.smash) {
         smashAt[player] = -Infinity; // one smash per shake
         smashFx(player);
@@ -561,6 +583,12 @@
     }
 
     function step(h) {
+      // Spin curves the ball: a small sideways push each sub-step, fading over time.
+      if (ball.spin) {
+        ball.vy += ball.spin * SPIN_CURVE * h;
+        ball.spin *= Math.exp(-SPIN_DECAY * h);
+        if (Math.abs(ball.spin) < 0.01) ball.spin = 0;
+      }
       ball.x += ball.vx * h;
       ball.y += ball.vy * h;
 
@@ -589,6 +617,7 @@
       ball.x = (W - BALL) / 2;
       ball.y = (H - BALL) / 2;
       ball.smash = false;
+      ball.spin = 0;
       demoLaunch(Math.random() < 0.5 ? -1 : 1);
     }
 
@@ -627,7 +656,12 @@
       // Ease towards the target (lerp 0.25 per 60 fps frame, scaled for other
       // frame rates) so ~30 Hz phone updates look smooth instead of jumping.
       const ease = 1 - Math.pow(1 - PADDLE_LERP, dt * 60);
-      for (const p of Object.values(paddles)) p.y += (p.target - p.y) * ease;
+      for (const p of Object.values(paddles)) {
+        const before = p.y;
+        p.y += (p.target - p.y) * ease;
+        // Bat speed in px/s, lightly smoothed; a fast swipe/tilt at contact = more spin.
+        if (dt > 0) p.vel += ((p.y - before) * (H - PADDLE_H) / dt - p.vel) * 0.5;
+      }
 
       if (phase === "serve") {
         serveTimer -= dt;
@@ -978,7 +1012,47 @@
       const bx = Math.round(cx - bw / 2), byy = Math.round(cy - bh / 2);
       ellipse(lctx, bx, byy, bw, bh, ball.smash ? COL.fireShade : COL.ballShade);
       ellipse(lctx, bx, byy, bw - 1, bh - 1, ball.smash ? COL.fire : COL.ball);
-      rect(lctx, bx + 1, byy + (bh > 3 ? 1 : 0), 1, 1, "#ffffff"); // 1px highlight
+      // 1px highlight. With spin it steps round the ball (clockwise for +spin).
+      const spots = [[1, 1], [bw - 3, 1], [bw - 3, bh - 3], [1, bh - 3]];
+      const [hx, hy] = ball.spin && bh > 3 ? spots[((Math.floor(spinAngle / (Math.PI / 2)) % 4) + 4) % 4] : [1, bh > 3 ? 1 : 0];
+      rect(lctx, bx + hx, byy + hy, 1, 1, "#ffffff");
+    }
+
+    // ---- Spin effects: curved trail + air streaks curling round the ball ----
+    // Strength follows |ball.spin|; the trail is the ball's real recent path, so it
+    // bends the same way the spin is curving it.
+    let spinAngle = 0;       // rotation of the streaks/highlight, radians
+    const spinTrail = [];    // recent ball centres (low-res px)
+
+    function drawSpinFx(dt) {
+      const amount = Math.abs(ball.spin);
+      const cx = TX + (ball.x + BALL / 2) * S, cy = TY + (ball.y + BALL / 2) * S;
+      if (phase !== "play" || amount < 0.05) { spinTrail.length = 0; return; }
+      spinAngle += Math.sign(ball.spin) * (6 + 14 * amount) * dt;
+
+      // Trail: dotted line through the last few positions, fading towards the tail.
+      spinTrail.push({ x: cx, y: cy });
+      if (spinTrail.length > 10) spinTrail.shift();
+      for (let i = 1; i < spinTrail.length; i++) {
+        const a = spinTrail[i - 1], b = spinTrail[i];
+        const steps = Math.max(1, Math.round(Math.hypot(b.x - a.x, b.y - a.y)));
+        lctx.globalAlpha = (i / spinTrail.length) * 0.45 * amount;
+        for (let j = 0; j < steps; j += 2) {
+          rect(lctx, Math.round(a.x + (b.x - a.x) * j / steps), Math.round(a.y + (b.y - a.y) * j / steps), 1, 1, "#b8f2ff");
+        }
+      }
+
+      // Air streaks: 1-3 short arcs orbiting the ball in the spin direction.
+      const streaks = 1 + Math.round(2 * amount);
+      lctx.globalAlpha = 0.25 + 0.4 * amount;
+      for (let k = 0; k < streaks; k++) {
+        const base = spinAngle + (k * Math.PI * 2) / streaks;
+        for (let j = 0; j < 3; j++) {
+          const a = base - Math.sign(ball.spin) * j * 0.35, r = 5 + j * 0.4;
+          rect(lctx, Math.round(cx + Math.cos(a) * r), Math.round(cy + Math.sin(a) * r), 1, 1, "#e8fbff");
+        }
+      }
+      lctx.globalAlpha = 1;
     }
 
     function drawPuffs(dt) {
@@ -997,7 +1071,7 @@
     // ---- Smash effects: screen shake, flash, fiery trail, "SMASH!" text ----
     const SHAKE_MS = 350, FLASH_MS = 180, SMASH_TEXT_MS = 900;
     let shakeUntil = 0, flashUntil = 0;
-    let smashText = null; // { player, until }
+    let popText = null; // { player, until, dur, text, cols }: "SMASH!" or "SPIN!" over a bat
     const flames = [];
     const FLAME_COLS = ["#ffd166", "#ff8a3a", "#e04848", "#fff1a8"];
 
@@ -1005,7 +1079,13 @@
       const now = performance.now();
       shakeUntil = now + SHAKE_MS;
       flashUntil = now + FLASH_MS;
-      smashText = { player, until: now + SMASH_TEXT_MS };
+      popText = { player, until: now + SMASH_TEXT_MS, dur: SMASH_TEXT_MS, text: "SMASH!", cols: [COL.fire, "#ffd166"] };
+    }
+
+    // Heavy spin on a hit: icy "SPIN!" over the bat (a smash's text wins if both).
+    function spinFx(player) {
+      const now = performance.now();
+      popText = { player, until: now + 700, dur: 700, text: "SPIN!", cols: ["#7ad7ff", "#e8fbff"] };
     }
 
     // Drop a few flame pixels behind the ball each frame while it's smashed, then let them fade.
@@ -1033,11 +1113,11 @@
       lctx.globalAlpha = 1;
     }
 
-    // Big "SMASH!" above the smasher's bat, drawn at full resolution so the font stays crisp.
-    function drawSmashText(now, k) {
-      if (!smashText || now > smashText.until) return;
-      const t = 1 - (smashText.until - now) / SMASH_TEXT_MS; // 0 -> 1
-      const p = smashText.player;
+    // Big "SMASH!" / "SPIN!" above the bat, drawn at full resolution so the font stays crisp.
+    function drawPopText(now, k) {
+      if (!popText || now > popText.until) return;
+      const t = 1 - (popText.until - now) / popText.dur; // 0 -> 1
+      const p = popText.player;
       const x = (TX + (paddleX(p) + PADDLE_W / 2) * S) * k;
       const y = Math.max(14 * k, (TY + paddleTop(p) * S - 8 - t * 10) * k);
       ctx.globalAlpha = t > 0.7 ? (1 - t) / 0.3 : 1;
@@ -1045,9 +1125,9 @@
       ctx.textBaseline = "middle";
       ctx.font = `${Math.round(12 * k)}px "Press Start 2P", monospace`;
       ctx.fillStyle = "#000";
-      ctx.fillText("SMASH!", x + 2 * k, y + 2 * k);
-      ctx.fillStyle = Math.floor(now / 80) % 2 ? COL.fire : "#ffd166";
-      ctx.fillText("SMASH!", x, y);
+      ctx.fillText(popText.text, x + 2 * k, y + 2 * k);
+      ctx.fillStyle = popText.cols[Math.floor(now / 80) % 2];
+      ctx.fillText(popText.text, x, y);
       ctx.globalAlpha = 1;
     }
 
@@ -1132,6 +1212,7 @@
         const h = ballHeight(now);
         // Blink the ball while waiting to serve.
         drawFlames(dt);
+        drawSpinFx(dt);
         if (phase !== "serve" || Math.floor(serveTimer * 6) % 2 === 0) drawBall(h, now);
       }
       drawPuffs(dt);
@@ -1155,7 +1236,7 @@
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         ctx.globalAlpha = 1;
       }
-      drawSmashText(now, k);
+      drawPopText(now, k);
       drawRally(k);
       if (phase === "over") drawConfetti(dt);
 
