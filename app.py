@@ -6,10 +6,14 @@ Socket.IO contract:
   phone -> server: join {room, id, player} -> "joined" {player: 1|2} or "room_full"
                   (id + last player number let a rejoining phone reclaim its slot)
   phone -> server: paddle {room, y}       (y: 0 top .. 1 bottom)
+  phone -> server: smash {room}           (player shook the phone)
   host  -> server: create_room {room}
   host  -> server: score {room, p1, p2}
-  server -> host:  player_joined {player}, player_left {player}, paddle {player, y}
+  host  -> server: smash_landed {room, player}
+  server -> host:  player_joined {player}, player_left {player}, paddle {player, y},
+                   smash {player}
   server -> phones: score {p1, p2}
+  server -> one phone: smash_landed {}
 """
 import os
 import threading
@@ -131,6 +135,45 @@ def handle_paddle(data):
         host = room["host"]
     if number is not None:
         socketio.emit("paddle", {"player": number, "y": y}, to=host)
+
+
+def phone_to_host(data, event):
+    """Forward a phone's event to its room's host as {player}. Returns nothing."""
+    code = normalise_code(data)
+    if not code:
+        return
+    with rooms_lock:
+        room = rooms.get(code)
+        if not room or not room["host"]:
+            return
+        number = player_for(room, request.sid)
+        host = room["host"]
+    if number is not None:
+        socketio.emit(event, {"player": number}, to=host)
+
+
+def host_to_phone(data, event, payload=None):
+    """Forward a host event to one player's phone (data["player"] picks which)."""
+    code = normalise_code(data)
+    if not code:
+        return
+    with rooms_lock:
+        room = rooms.get(code)
+        if not room or room["host"] != request.sid:
+            return  # only the host may send these
+        phone = room["players"].get(data.get("player"))
+    if phone:
+        socketio.emit(event, payload or {}, to=phone)
+
+
+@socketio.on("smash")
+def handle_smash(data):
+    phone_to_host(data, "smash")
+
+
+@socketio.on("smash_landed")
+def handle_smash_landed(data):
+    host_to_phone(data, "smash_landed")
 
 
 @socketio.on("score")

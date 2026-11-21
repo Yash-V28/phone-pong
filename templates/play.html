@@ -132,6 +132,20 @@
       pointer-events: none;
     }
 
+    #pad.smash { border-color: #ff8a3a; }
+
+    .smash-hint { font-size: 0.55rem; color: #ff8a3a; }
+
+    /* Full-screen flash (smash landed, hits, points). Colour is set from JS. */
+    #flash {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      opacity: 0;
+    }
+    #flash.on { animation: flash 0.35s ease-out; }
+    @keyframes flash { from { opacity: 0.7; } to { opacity: 0; } }
+
     @keyframes blink { 50% { opacity: 0.3; } }
 
     /* Faint CRT scanlines, matching the home screen */
@@ -160,12 +174,14 @@
     <button id="motion-btn" class="btn">ENABLE MOTION</button>
     <button id="recentre-btn" class="btn-small hidden">RECENTRE</button>
     <p id="hint" class="hint">TILT TO MOVE<br>OR DRAG IN THE BOX</p>
+    <p id="smash-hint" class="smash-hint hidden">SHAKE TO SMASH!</p>
 
     <div id="pad">
       <div class="label">DRAG UP / DOWN</div>
       <div id="paddle"></div>
     </div>
   </main>
+  <div id="flash"></div>
 
   <!-- Socket.IO JS client v4 matches Flask-SocketIO 5.x -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js"></script>

@@ -4,7 +4,9 @@
 //   emit  join   {room, id, player} -> receive "joined" {player: 1|2} or "room_full"
 //         (id + last player number let a rejoining phone reclaim its old slot)
 //   emit  paddle {room, y}
+//   emit  smash  {room}          (phone was shaken; 1 s cooldown)
 //   on    score  {p1, p2}
+//   on    smash_landed           (our smash hit the ball: flash the screen)
 
 (() => {
   const SEND_INTERVAL_MS = 33; // ~30 updates per second
@@ -13,6 +15,8 @@
   const DEAD_ZONE = 2;         // degrees around the centre that count as "centre"
   const TILT_SMOOTHING = 0.2;  // low-pass filter weight for each new reading (0..1)
   const ROOM_FULL_RETRY_MS = 3000;
+  const SMASH_THRESHOLD = 18;  // m/s² of movement (gravity removed) that counts as a shake
+  const SMASH_COOLDOWN_MS = 1000;
 
   const statusEl = document.getElementById("status");
   const roomEl = document.getElementById("room-code");
@@ -21,6 +25,8 @@
   const p2El = document.getElementById("score-p2");
   const motionBtn = document.getElementById("motion-btn");
   const recentreBtn = document.getElementById("recentre-btn");
+  const smashHintEl = document.getElementById("smash-hint");
+  const flashEl = document.getElementById("flash");
   const hintEl = document.getElementById("hint");
   const pad = document.getElementById("pad");
   const paddleEl = document.getElementById("paddle");
@@ -36,6 +42,14 @@
   function setStatus(text, blink = false) {
     statusEl.textContent = text;
     statusEl.classList.toggle("blink", blink);
+  }
+
+  // Full-screen colour flash (restarting the CSS animation each time).
+  function flash(colour) {
+    flashEl.style.background = colour;
+    flashEl.classList.remove("on");
+    void flashEl.offsetWidth; // force reflow so the animation replays
+    flashEl.classList.add("on");
   }
 
   function setY(value) {
@@ -113,6 +127,8 @@
     scoreEl.classList.remove("hidden");
   });
 
+  socket.on("smash_landed", () => flash("#ff8a3a"));
+
   // Stream the paddle position while we hold a player slot.
   setInterval(() => {
     if (player && socket.connected) {
@@ -148,13 +164,38 @@
     setY((beta + range) / (2 * range)); // -range -> 0 (top), +range -> 1 (bottom)
   }
 
+  // ---- Shake to smash ----
+  let lastSmash = 0;
+
+  function onMotion(e) {
+    let magnitude;
+    const a = e.acceleration; // gravity already removed, when the phone supports it
+    if (a && a.x != null) {
+      magnitude = Math.hypot(a.x, a.y, a.z);
+    } else {
+      const g = e.accelerationIncludingGravity;
+      if (!g || g.x == null) return;
+      magnitude = Math.abs(Math.hypot(g.x, g.y, g.z) - 9.81); // subtract gravity
+    }
+    if (magnitude < SMASH_THRESHOLD) return;
+    const now = Date.now();
+    if (now - lastSmash < SMASH_COOLDOWN_MS) return; // no spamming
+    lastSmash = now;
+    if (player && socket.connected) socket.emit("smash", { room });
+    // Quick local cue that the shake registered.
+    pad.classList.add("smash");
+    setTimeout(() => pad.classList.remove("smash"), 300);
+  }
+
   function startMotion() {
     centreBeta = null;
     window.addEventListener("deviceorientation", onOrientation);
+    window.addEventListener("devicemotion", onMotion);
     motionBtn.textContent = "MOTION ON";
     motionBtn.disabled = true;
     hintEl.textContent = "TILT TO MOVE";
     recentreBtn.classList.remove("hidden");
+    smashHintEl.classList.remove("hidden");
     // Desktop browsers / insecure (http) pages often never fire the event.
     setTimeout(() => {
       if (!motionSeen) {
@@ -185,6 +226,11 @@
         hintEl.innerHTML = "NEEDS HTTPS ON IOS<br>DRAG IN THE BOX";
         return;
       }
+    }
+    // Shake detection needs its own permission on iOS; tilt still works without it.
+    if (typeof DeviceMotionEvent !== "undefined" &&
+        typeof DeviceMotionEvent.requestPermission === "function") {
+      try { await DeviceMotionEvent.requestPermission(); } catch { /* no smash, tilt still fine */ }
     }
     startMotion();
   });

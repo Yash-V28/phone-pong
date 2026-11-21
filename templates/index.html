@@ -245,6 +245,8 @@
     const SERVE_DELAY = 1;     // seconds before each serve
     const KEY_SPEED = 1.4;     // paddle travel per second (0..1 range) with keyboard
     const PADDLE_LERP = 0.25;  // fraction of the gap to the target closed each frame
+    const SMASH_WINDOW = 0.4;  // seconds after a phone shake in which a hit becomes a smash
+    const SMASH_BOOST = 1.8;   // smash shot speed multiplier (that one shot only)
     const CODE_LETTERS = "ABCDEFGHJKLMNPQRSTUVWXYZ"; // no I/O, easy to read aloud
 
     const $ = (id) => document.getElementById(id);
@@ -260,7 +262,9 @@
     const joined = { 1: false, 2: false };
     const paddles = { 1: { y: 0.5, target: 0.5 }, 2: { y: 0.5, target: 0.5 } };
     const score = { 1: 0, 2: 0 };
-    const ball = { x: 0, y: 0, vx: 0, vy: 0, speed: START_SPEED };
+    // speed is the rally's base speed; smash = this shot was smashed (moves SMASH_BOOST x faster).
+    const ball = { x: 0, y: 0, vx: 0, vy: 0, speed: START_SPEED, smash: false };
+    const smashAt = { 1: -Infinity, 2: -Infinity }; // when each phone last shook (seconds)
     let serveTimer = 0, serveDir = 1;
     const keys = new Set();
 
@@ -297,6 +301,8 @@
       point: () => beep(120, 0.35, 0, "square", 0.1),
       join: () => { beep(660, 0.08); beep(990, 0.12, 0.09); },
       win: () => [523, 659, 784, 1047].forEach((f, i) => beep(f, 0.18, i * 0.15)),
+      // Louder, crunchier hit for a smash.
+      smash: () => { beep(140, 0.25, 0, "sawtooth", 0.3); beep(720, 0.12, 0, "square", 0.22); beep(1100, 0.08, 0.03, "square", 0.15); },
     };
 
     // ---- Networking ----
@@ -327,6 +333,10 @@
       // A held key wins over the phone, so keyboard testing works alongside phones.
       if (keyHeld(player)) return;
       p.target = Math.min(1, Math.max(0, y));
+    });
+
+    socket.on("smash", ({ player }) => {
+      if (player === 1 || player === 2) smashAt[player] = performance.now() / 1000;
     });
 
     function emitScore() {
@@ -389,6 +399,8 @@
       ball.y = (H - BALL) / 2;
       ball.vx = ball.vy = 0;
       ball.speed = START_SPEED;
+      ball.smash = false;
+      smashAt[1] = smashAt[2] = -Infinity;
       serveTimer = SERVE_DELAY;
       phase = "serve";
     }
@@ -444,11 +456,22 @@
       rel = Math.max(-1, Math.min(1, rel));
       const angle = rel * MAX_BOUNCE;
       ball.speed = Math.min(MAX_SPEED, ball.speed * SPEED_UP);
+      // Smash if this player shook their phone just before the ball arrived.
+      // Only this shot is boosted: the next hit uses the normal ball.speed again.
+      ball.smash = performance.now() / 1000 - smashAt[player] <= SMASH_WINDOW;
+      const speed = ball.speed * (ball.smash ? SMASH_BOOST : 1);
       const dir = player === 1 ? 1 : -1;
-      ball.vx = dir * ball.speed * Math.cos(angle);
-      ball.vy = ball.speed * Math.sin(angle);
+      ball.vx = dir * speed * Math.cos(angle);
+      ball.vy = speed * Math.sin(angle);
       ball.x = player === 1 ? paddleX(1) + PADDLE_W : paddleX(2) - BALL;
-      sfx.paddle();
+      if (ball.smash) {
+        smashAt[player] = -Infinity; // one smash per shake
+        smashFx(player);
+        sfx.smash();
+        socket.emit("smash_landed", { room: roomCode, player });
+      } else {
+        sfx.paddle();
+      }
     }
 
     function step(h) {
@@ -515,6 +538,7 @@
       wood: "#e2b67a", woodDark: "#a77b45", handle: "#ecc890",
       table: "#23807a", tableEdge: "#11504b", line: "#f4f4ef",
       ball: "#efeee6", ballShade: "#c3c3c9",
+      fire: "#ff8a3a", fireShade: "#c0442a",
       shadow: "rgba(0, 18, 16, 0.38)",
     };
 
@@ -828,8 +852,8 @@
       let bw = Math.round(5 + lift * 2), bh = bw;
       if (now < squashUntil) { bw = 7; bh = 3; }
       const bx = Math.round(cx - bw / 2), byy = Math.round(cy - bh / 2);
-      ellipse(lctx, bx, byy, bw, bh, COL.ballShade);
-      ellipse(lctx, bx, byy, bw - 1, bh - 1, COL.ball);
+      ellipse(lctx, bx, byy, bw, bh, ball.smash ? COL.fireShade : COL.ballShade);
+      ellipse(lctx, bx, byy, bw - 1, bh - 1, ball.smash ? COL.fire : COL.ball);
       rect(lctx, bx + 1, byy + (bh > 3 ? 1 : 0), 1, 1, "#ffffff"); // 1px highlight
     }
 
@@ -844,6 +868,63 @@
         rect(lctx, Math.round(p.x), Math.round(p.y), 1, 1, "#ffffff");
       }
       lctx.globalAlpha = 1;
+    }
+
+    // ---- Smash effects: screen shake, flash, fiery trail, "SMASH!" text ----
+    const SHAKE_MS = 350, FLASH_MS = 180, SMASH_TEXT_MS = 900;
+    let shakeUntil = 0, flashUntil = 0;
+    let smashText = null; // { player, until }
+    const flames = [];
+    const FLAME_COLS = ["#ffd166", "#ff8a3a", "#e04848", "#fff1a8"];
+
+    function smashFx(player) {
+      const now = performance.now();
+      shakeUntil = now + SHAKE_MS;
+      flashUntil = now + FLASH_MS;
+      smashText = { player, until: now + SMASH_TEXT_MS };
+    }
+
+    // Drop a few flame pixels behind the ball each frame while it's smashed, then let them fade.
+    function drawFlames(dt) {
+      if (phase === "play" && ball.smash) {
+        const cx = TX + (ball.x + BALL / 2) * S, cy = TY + (ball.y + BALL / 2) * S;
+        for (let i = 0; i < 4; i++) {
+          flames.push({
+            x: cx + (Math.random() * 4 - 2), y: cy + (Math.random() * 4 - 2),
+            vx: -Math.sign(ball.vx) * (10 + Math.random() * 20), vy: Math.random() * 16 - 8,
+            life: 0.3, max: 0.3, col: FLAME_COLS[(Math.random() * FLAME_COLS.length) | 0],
+          });
+        }
+      }
+      for (let i = flames.length - 1; i >= 0; i--) {
+        const f = flames[i];
+        f.life -= dt;
+        if (f.life <= 0) { flames.splice(i, 1); continue; }
+        f.x += f.vx * dt;
+        f.y += f.vy * dt;
+        lctx.globalAlpha = f.life / f.max;
+        const size = f.life > f.max / 2 ? 2 : 1; // flames shrink as they cool
+        rect(lctx, Math.round(f.x), Math.round(f.y), size, size, f.col);
+      }
+      lctx.globalAlpha = 1;
+    }
+
+    // Big "SMASH!" above the smasher's bat, drawn at full resolution so the font stays crisp.
+    function drawSmashText(now, k) {
+      if (!smashText || now > smashText.until) return;
+      const t = 1 - (smashText.until - now) / SMASH_TEXT_MS; // 0 -> 1
+      const p = smashText.player;
+      const x = (TX + (paddleX(p) + PADDLE_W / 2) * S) * k;
+      const y = Math.max(14 * k, (TY + paddleTop(p) * S - 8 - t * 10) * k);
+      ctx.globalAlpha = t > 0.7 ? (1 - t) / 0.3 : 1;
+      ctx.textAlign = p === 1 ? "left" : "right"; // keep it on screen near the edges
+      ctx.textBaseline = "middle";
+      ctx.font = `${Math.round(12 * k)}px "Press Start 2P", monospace`;
+      ctx.fillStyle = "#000";
+      ctx.fillText("SMASH!", x + 2 * k, y + 2 * k);
+      ctx.fillStyle = Math.floor(now / 80) % 2 ? COL.fire : "#ffd166";
+      ctx.fillText("SMASH!", x, y);
+      ctx.globalAlpha = 1;
     }
 
     // ---- Scale the low-res scene up to fill the screen, pixel-crisp ----
@@ -875,16 +956,34 @@
       if (phase === "serve" || phase === "play") {
         const h = ballHeight(now);
         // Blink the ball while waiting to serve.
+        drawFlames(dt);
         if (phase === "play" || Math.floor(serveTimer * 6) % 2 === 0) drawBall(h, now);
       }
       drawPuffs(dt);
 
       ctx.imageSmoothingEnabled = false;
-      ctx.drawImage(low, 0, 0, canvas.width, canvas.height);
+      const k = canvas.width / LW;
+      // Screen shake: jitter the whole scene, fading out over SHAKE_MS.
+      let ox = 0, oy = 0;
+      if (now < shakeUntil) {
+        const m = 4 * k * (shakeUntil - now) / SHAKE_MS;
+        ox = Math.round((Math.random() * 2 - 1) * m);
+        oy = Math.round((Math.random() * 2 - 1) * m);
+        ctx.fillStyle = "#000";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+      }
+      ctx.drawImage(low, ox, oy, canvas.width, canvas.height);
+      // Warm white flash on the smash.
+      if (now < flashUntil) {
+        ctx.globalAlpha = 0.6 * (flashUntil - now) / FLASH_MS;
+        ctx.fillStyle = "#fff4d6";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.globalAlpha = 1;
+      }
+      drawSmashText(now, k);
 
       if (phase === "paused") {
         // Text is drawn at full resolution so Press Start 2P stays sharp.
-        const k = canvas.width / LW;
         const missing = [1, 2].filter((p) => !joined[p]);
         ctx.fillStyle = "rgba(20, 14, 20, 0.88)";
         ctx.fillRect(canvas.width / 2 - 130 * k, canvas.height / 2 - 26 * k, 260 * k, 52 * k);
