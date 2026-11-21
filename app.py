@@ -3,7 +3,8 @@
 Built at KCL FirstYearHack 2026 (Retro Remix).
 
 Socket.IO contract:
-  phone -> server: join {room}            -> "joined" {player: 1|2} or "room_full"
+  phone -> server: join {room, id, player} -> "joined" {player: 1|2} or "room_full"
+                  (id + last player number let a rejoining phone reclaim its slot)
   phone -> server: paddle {room, y}       (y: 0 top .. 1 bottom)
   host  -> server: create_room {room}
   host  -> server: score {room, p1, p2}
@@ -24,7 +25,7 @@ socketio = SocketIO(app, async_mode="threading", cors_allowed_origins="*")
 
 MAX_PLAYERS = 2
 
-# room code -> {"host": sid | None, "players": {1: sid, 2: sid}}
+# room code -> {"host": sid | None, "players": {1: sid, 2: sid}, "ids": {1: client_id, ...}}
 rooms = {}
 rooms_lock = threading.Lock()
 
@@ -35,6 +36,10 @@ def normalise_code(data):
         return None
     code = str(data.get("room") or "").strip().upper()
     return code[:16] or None
+
+
+def new_room():
+    return {"host": None, "players": {}, "ids": {}}
 
 
 def phones_channel(code):
@@ -66,7 +71,7 @@ def handle_create_room(data):
     if not code:
         return
     with rooms_lock:
-        room = rooms.setdefault(code, {"host": None, "players": {}})
+        room = rooms.setdefault(code, new_room())
         room["host"] = request.sid
         already_joined = sorted(room["players"])
     # Phones that arrived before the host (e.g. after a host refresh) still count.
@@ -80,15 +85,23 @@ def handle_join(data):
     if not code:
         return
     sid = request.sid
+    client_id = str(data.get("id") or "")[:64] or None
+    preferred = data.get("player") if data.get("player") in range(1, MAX_PLAYERS + 1) else None
     with rooms_lock:
-        room = rooms.setdefault(code, {"host": None, "players": {}})
+        room = rooms.setdefault(code, new_room())
         number = player_for(room, sid)
         is_new = number is None
-        if is_new:
+        if is_new and client_id:
+            # Same phone on a new connection (its old one may not have timed out
+            # yet): take the slot back instead of being told the room is full.
+            number = next((n for n, i in room["ids"].items() if i == client_id), None)
+        if number is None:
             free = [n for n in range(1, MAX_PLAYERS + 1) if n not in room["players"]]
-            number = free[0] if free else None
-            if number is not None:
-                room["players"][number] = sid
+            # Prefer the slot this phone had before (e.g. after a server restart).
+            number = preferred if preferred in free else (free[0] if free else None)
+        if number is not None:
+            room["players"][number] = sid
+            room["ids"][number] = client_id
         host = room["host"]
 
     if number is None:
@@ -147,6 +160,7 @@ def handle_disconnect(*_args):
             number = player_for(room, sid)
             if number is not None:
                 del room["players"][number]
+                room["ids"].pop(number, None)
                 if room["host"]:
                     notify.append((room["host"], number))
             if not room["host"] and not room["players"]:
