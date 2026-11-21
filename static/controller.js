@@ -1,16 +1,18 @@
 // Phone Pong controller: joins a room and streams paddle position (y: 0 top .. 1 bottom).
 //
 // Socket.IO contract (phone side):
-//   emit  join   {room, id, player} -> receive "joined" {player: 1|2} or "room_full"
+//   emit  join   {room, id, player} -> receive "joined" {player: 1-4} or "room_full" {mode}
 //         (id + last player number let a rejoining phone reclaim its old slot)
 //   emit  paddle {room, y, spin}   (spin -1..1 from twisting the phone, or dragging sideways)
 //   emit  smash  {room}          (phone was shaken; 1 s cooldown)
 //   emit  rematch {room}         (REMATCH tapped on the game-over screen)
 //   emit  latency_ping {room} (acked by the server) then latency {room, ms}, every 2 s
-//   on    score  {p1, p2}
+//   emit  set_mode {room, mode, difficulty}, start_game {room}   (captain = P1 only)
+//   on    room_state {players, mode, difficulty, state: "lobby"|"game"}
+//   on    score  {p1, p2}            (team scores: p1 = RED, p2 = BLUE)
 //   on    smash_landed           (our smash hit the ball: flash the screen)
 //   on    hit    {type}          ("hit": our bat struck the ball, "concede": we lost a point)
-//   on    game_over {winner} / match_start   (show / hide the REMATCH button)
+//   on    game_over {winner: "red"|"blue", label} / match_start   (show / hide REMATCH)
 
 (() => {
   const SEND_INTERVAL_MS = 33; // ~30 updates per second
@@ -22,6 +24,12 @@
   const SMASH_THRESHOLD = 18;  // m/s² of movement (gravity removed) that counts as a shake
   const SMASH_COOLDOWN_MS = 1000;
   const LATENCY_INTERVAL_MS = 2000;
+
+  // Teams: RED = P1 + P3 (left), BLUE = P2 + P4 (right). Each player has its own shade.
+  const TEAM_OF = { 1: "red", 2: "blue", 3: "red", 4: "blue" };
+  const SHADES = { 1: "#e04848", 2: "#3f6fe6", 3: "#f07a3a", 4: "#2fb0d8" };
+  const MODE_PLAYERS = { "1v1": [1, 2], "2v2": [1, 2, 3, 4], "coop": [1, 3] };
+  const MODE_NAMES = { "1v1": "1V1", "2v2": "2V2", "coop": "CO-OP VS BOTS" };
   const TWIST_RANGE = 30;      // sideways roll (gamma) for full spin, degrees from the centre
   const TWIST_DEAD_ZONE = 4;   // small wobbles in the roll don't add spin
   const DRAG_SPIN_WIDTH = 0.35; // dragging sideways this fraction of the pad = full spin
@@ -40,10 +48,21 @@
   const pad = document.getElementById("pad");
   const paddleEl = document.getElementById("paddle");
   const spinFillEl = document.getElementById("spin-fill");
+  const modeLabelEl = document.getElementById("mode-label");
+  const lobbyPanel = document.getElementById("lobby-panel");
+  const gamePanel = document.getElementById("game-panel");
+  const captainControls = document.getElementById("captain-controls");
+  const difficultyRow = document.getElementById("difficulty-row");
+  const startBtn = document.getElementById("start-btn");
+  const lobbyInfoEl = document.getElementById("lobby-info");
 
   const room = (new URLSearchParams(location.search).get("room") || "").trim();
 
-  let player = null;     // 1 or 2 once joined
+  let player = null;     // 1-4 once joined (1 = captain)
+  let mode = "1v1", difficulty = "easy";
+  let players = [];      // player numbers in the room
+  let roomState = "lobby"; // "lobby" | "game"
+  let gameOver = false;
   let y = 0.5;           // current paddle position
   let dragging = false;  // finger on the pad overrides tilt
   let twistSpin = 0;     // -1..1 from rolling the phone left/right
@@ -52,9 +71,37 @@
 
   const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 
-  function setStatus(text, blink = false) {
+  function setStatus(text, blink = false, colour = "#fff") {
     statusEl.textContent = text;
+    statusEl.style.color = colour;
     statusEl.classList.toggle("blink", blink);
+  }
+
+  // "YOU ARE P3 - RED TEAM", in this player's own shade.
+  function showIdentity() {
+    if (player) setStatus(`YOU ARE P${player} - ${TEAM_OF[player].toUpperCase()} TEAM`, false, SHADES[player]);
+  }
+
+  // Show the lobby controls or the game controls, and keep the mode buttons in sync.
+  function render() {
+    modeLabelEl.textContent = MODE_NAMES[mode];
+    const inLobby = player && roomState === "lobby";
+    lobbyPanel.classList.toggle("hidden", !inLobby);
+    gamePanel.classList.toggle("hidden", !player || roomState !== "game" || gameOver);
+    captainControls.classList.toggle("hidden", player !== 1);
+    difficultyRow.classList.toggle("hidden", mode !== "coop");
+    for (const b of document.querySelectorAll("[data-mode]")) b.classList.toggle("on", b.dataset.mode === mode);
+    for (const b of document.querySelectorAll("[data-diff]")) b.classList.toggle("on", b.dataset.diff === difficulty);
+
+    const missing = MODE_PLAYERS[mode].filter((n) => !players.includes(n));
+    startBtn.classList.toggle("hidden", missing.length > 0);
+    const waiting = missing.length ? `WAITING FOR ${missing.map((n) => `P${n}`).join(", ")}` : "EVERYONE'S IN!";
+    lobbyInfoEl.innerHTML = player === 1 ? waiting : `${waiting}<br>P1 PICKS THE MODE AND STARTS`;
+
+    // Score labels: co-op is RED vs the BOTS.
+    document.getElementById("score-p2-label").textContent = mode === "coop" ? "BOTS" : "BLUE";
+    p1El.classList.toggle("mine", TEAM_OF[player] === "red");
+    p2El.classList.toggle("mine", TEAM_OF[player] === "blue");
   }
 
   // Full-screen colour flash (restarting the CSS animation each time).
@@ -130,15 +177,38 @@
     player = data && data.player;
     lastPlayer = player;
     store.set(PLAYER_KEY, String(player));
-    setStatus(`YOU ARE PLAYER ${player}`);
-    p1El.classList.toggle("mine", player === 1);
-    p2El.classList.toggle("mine", player === 2);
+    showIdentity();
+    render();
   });
 
+  // Players / mode / lobby-or-game, sent by the server whenever anything changes.
+  socket.on("room_state", (st) => {
+    if (!st) return;
+    players = st.players || [];
+    if (st.mode in MODE_NAMES) mode = st.mode;
+    if (st.difficulty) difficulty = st.difficulty;
+    if (st.state !== roomState) {
+      roomState = st.state;
+      if (roomState === "lobby") { gameOver = false; rematchBtn.classList.add("hidden"); showIdentity(); }
+    }
+    render();
+  });
+
+  // Captain controls: the server checks we're P1 and relays to the host.
+  for (const b of document.querySelectorAll("[data-mode]")) {
+    b.addEventListener("click", () => socket.emit("set_mode", { room, mode: b.dataset.mode, difficulty }));
+  }
+  for (const b of document.querySelectorAll("[data-diff]")) {
+    b.addEventListener("click", () => socket.emit("set_mode", { room, mode, difficulty: b.dataset.diff }));
+  }
+  startBtn.addEventListener("click", () => socket.emit("start_game", { room }));
+
   // Keep retrying: a slot frees up when a player leaves or a stale connection times out.
-  socket.on("room_full", () => {
+  socket.on("room_full", (data) => {
     player = null;
-    setStatus("ROOM FULL - RETRYING", true);
+    render();
+    const m = data && MODE_NAMES[data.mode];
+    setStatus(m ? `${m} IS FULL - WAITING` : "ROOM FULL - RETRYING", true);
     clearTimeout(retryTimer);
     retryTimer = setTimeout(() => { if (socket.connected) join(); }, ROOM_FULL_RETRY_MS);
   });
@@ -150,18 +220,21 @@
     scoreEl.classList.remove("hidden");
   });
 
-  const PLAYER_COLOURS = { 1: "#e04848", 2: "#3f6fe6" };
-
   // ---- Match flow ----
   socket.on("game_over", (data) => {
     const winner = data && data.winner;
-    setStatus(winner === player ? "YOU WIN!" : `PLAYER ${winner} WINS`, true);
+    gameOver = true;
+    setStatus(winner === TEAM_OF[player] ? "YOU WIN!" : (data.label || "GAME OVER"), true);
     rematchBtn.classList.remove("hidden");
+    render();
   });
 
   socket.on("match_start", () => {
-    if (player) setStatus(`YOU ARE PLAYER ${player}`);
+    gameOver = false;
+    roomState = "game";
+    showIdentity();
     rematchBtn.classList.add("hidden");
+    render();
   });
 
   rematchBtn.addEventListener("click", () => {
@@ -179,7 +252,7 @@
   });
 
   socket.on("hit", (data) => {
-    const colour = PLAYER_COLOURS[player] || "#fff";
+    const colour = SHADES[player] || "#fff";
     if (data && data.type === "concede") {
       vibrate(200);
       flash(colour);

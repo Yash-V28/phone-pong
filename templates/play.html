@@ -56,7 +56,9 @@
       font-size: clamp(1.2rem, 7vw, 2rem);
     }
 
-    .score .label { display: block; font-size: 0.5rem; color: #aaa; margin-bottom: 0.5rem; }
+    .score .label { display: block; font-size: 0.5rem; margin-bottom: 0.5rem; }
+    #score-p1-label { color: #e04848; }
+    #score-p2-label { color: #3f6fe6; }
     .score .mine { text-decoration: underline; text-underline-offset: 0.4em; }
 
     .hidden { display: none !important; }
@@ -100,6 +102,34 @@
       color: #aaa;
       line-height: 2;
     }
+
+    #mode-label { color: #ffd166; }
+
+    /* Lobby (captain picks mode / difficulty / START) and in-game panels */
+    .panel { display: flex; flex-direction: column; gap: 0.75rem; }
+    #game-panel { flex: 1; min-height: 0; }
+
+    .btn-grid { display: flex; gap: 0.5rem; }
+    .btn-grid > * { flex: 1; }
+
+    /* Big thumb-sized pixel buttons */
+    .pick {
+      font-family: inherit;
+      font-size: clamp(0.6rem, 3.4vw, 0.8rem);
+      line-height: 1.6;
+      color: #fff;
+      background: #000;
+      border: 4px solid #666;
+      box-shadow: 4px 4px 0 #333;
+      min-height: 3.5rem;
+      padding: 0.5rem;
+      cursor: pointer;
+      touch-action: manipulation;
+    }
+    .pick.on { border-color: #fff; background: #23807a; }
+    .pick:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0 #333; }
+
+    .btn.big { font-size: clamp(1.1rem, 6vw, 1.5rem); min-height: 4.5rem; background: #23807a; }
 
     /* Touch fallback: drag up/down anywhere in this box. */
     #pad {
@@ -196,13 +226,14 @@
 </head>
 <body>
   <main class="controller">
-    <p class="room">ROOM <span id="room-code">----</span></p>
+    <p class="room">ROOM <span id="room-code">----</span> &middot; <span id="mode-label">1V1</span></p>
     <h1 id="status" class="blink">CONNECTING...</h1>
 
+    <!-- Team scores: RED (P1 + P3) vs BLUE (P2 + P4) -->
     <div id="score" class="score hidden">
-      <div><span class="label">P1</span><span id="score-p1">0</span></div>
+      <div><span id="score-p1-label" class="label">RED</span><span id="score-p1">0</span></div>
       <div>-</div>
-      <div><span class="label">P2</span><span id="score-p2">0</span></div>
+      <div><span id="score-p2-label" class="label">BLUE</span><span id="score-p2">0</span></div>
     </div>
 
     <button id="motion-btn" class="btn">ENABLE MOTION</button>
@@ -211,15 +242,34 @@
     <p id="smash-hint" class="smash-hint hidden">SHAKE TO SMASH!</p>
     <button id="rematch-btn" class="btn hidden">REMATCH</button>
 
-    <div class="spin">
-      <span>SPIN</span>
-      <div id="spin-meter"><div id="spin-fill"></div></div>
-    </div>
+    <!-- Lobby: only the captain (P1) gets the mode buttons and START -->
+    <section id="lobby-panel" class="panel hidden">
+      <div id="captain-controls" class="panel hidden">
+        <div class="btn-grid">
+          <button class="pick" data-mode="1v1">1V1</button>
+          <button class="pick" data-mode="2v2">2V2</button>
+          <button class="pick" data-mode="coop">CO-OP VS BOTS</button>
+        </div>
+        <div id="difficulty-row" class="btn-grid hidden">
+          <button class="pick" data-diff="easy">EASY BOTS</button>
+          <button class="pick" data-diff="hard">HARD BOTS</button>
+        </div>
+        <button id="start-btn" class="btn big hidden">START</button>
+      </div>
+      <p id="lobby-info" class="hint"></p>
+    </section>
 
-    <div id="pad">
-      <div class="label">DRAG UP / DOWN<br><br>SIDEWAYS = SPIN</div>
-      <div id="paddle"></div>
-    </div>
+    <section id="game-panel" class="panel hidden">
+      <div class="spin">
+        <span>SPIN</span>
+        <div id="spin-meter"><div id="spin-fill"></div></div>
+      </div>
+
+      <div id="pad">
+        <div class="label">DRAG UP / DOWN<br><br>SIDEWAYS = SPIN</div>
+        <div id="paddle"></div>
+      </div>
+    </section>
   </main>
   <div id="flash"></div>
 

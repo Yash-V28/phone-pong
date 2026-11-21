@@ -19,6 +19,8 @@
       --muted: #c2b09c;
       --red: #e04848;
       --blue: #3f6fe6;
+      --p3: #f07a3a;   /* RED team, second shade */
+      --p4: #2fb0d8;   /* BLUE team, second shade */
       --teal: #23807a;
       --gold: #ffd166;
     }
@@ -97,7 +99,7 @@
     .label.blink { color: var(--gold); animation: blink 1s steps(1) infinite; }
 
     /* Attract mode: a demo rally plays on the table behind the lobby, like an arcade cabinet. */
-    #lobby { position: relative; }
+    #lobby { position: relative; gap: 1.25rem; }
     #lobby > :not(#attract) { position: relative; z-index: 1; }
     #attract {
       position: absolute;
@@ -137,10 +139,10 @@
       border: 4px dashed #6a5860;
       color: #8a7880;
       background: rgba(0, 0, 0, 0.35);
-      padding: 1rem 1.5rem;
-      font-size: clamp(0.7rem, 2vw, 1rem);
+      padding: 0.75rem 1.25rem;
+      font-size: clamp(0.6rem, 1.6vw, 0.9rem);
       line-height: 2;
-      min-width: 14rem;
+      min-width: 10rem;
       transition: none;
     }
 
@@ -148,6 +150,8 @@
 
     #slot-1 { border-color: rgba(224, 72, 72, 0.6); }
     #slot-2 { border-color: rgba(63, 111, 230, 0.6); }
+    #slot-3 { border-color: rgba(240, 122, 58, 0.6); }
+    #slot-4 { border-color: rgba(47, 176, 216, 0.6); }
 
     .slot.on {
       border-style: solid;
@@ -158,6 +162,24 @@
 
     #slot-1.on { background: var(--red); }
     #slot-2.on { background: var(--blue); }
+    #slot-3.on { background: var(--p3); }
+    #slot-4.on { background: var(--p4); }
+
+    /* Mode / difficulty pickers (kept in sync with the captain's phone) */
+    .mode-row { display: flex; gap: 1rem; flex-wrap: wrap; justify-content: center; align-items: center; }
+    .mode-row .label { margin: 0; }
+    .mode-btn {
+      font-family: inherit;
+      font-size: clamp(0.6rem, 1.4vw, 0.85rem);
+      color: var(--cream);
+      background: rgba(0, 0, 0, 0.55);
+      border: 4px solid #6a5860;
+      box-shadow: 4px 4px 0 #000;
+      padding: 0.75rem 1rem;
+      cursor: pointer;
+    }
+    .mode-btn:hover, .mode-btn:focus-visible { border-color: var(--cream); outline: none; }
+    .mode-btn.on { background: var(--teal); border-color: var(--cream); }
 
     .warn { color: var(--gold); font-size: clamp(0.45rem, 1.2vw, 0.6rem); line-height: 2; border: 2px solid var(--gold); background: rgba(0, 0, 0, 0.5); padding: 0.75rem; max-width: 40rem; }
 
@@ -191,8 +213,8 @@
       color: var(--cream);
       text-shadow: 4px 4px 0 #000, 8px 8px 0 rgba(0, 0, 0, 0.4);
     }
-    #winner.p1 { color: var(--red); }
-    #winner.p2 { color: var(--blue); }
+    #winner.red { color: var(--red); }
+    #winner.blue { color: var(--blue); }
     #overlay .btn, #overlay .hint { position: relative; }
 
     /* Low-res canvas scaled up, so the confetti is chunky pixels. */
@@ -217,6 +239,8 @@
     }
     #latency .p1 { color: var(--red); }
     #latency .p2 { color: var(--blue); }
+    #latency .p3 { color: var(--p3); }
+    #latency .p4 { color: var(--p4); }
 
     /* Faint CRT scanlines for retro feel */
     body::after {
@@ -251,16 +275,33 @@
       </div>
     </div>
 
-    <div class="slots">
-      <div id="slot-1" class="slot">PLAYER 1<span class="state">WAITING...</span></div>
-      <div id="slot-2" class="slot">PLAYER 2<span class="state">WAITING...</span></div>
+    <div class="mode-row">
+      <button class="mode-btn" data-mode="1v1">1V1</button>
+      <button class="mode-btn" data-mode="2v2">2V2</button>
+      <button class="mode-btn" data-mode="coop">CO-OP VS BOTS</button>
     </div>
+    <div id="difficulty" class="mode-row hidden">
+      <span class="label">BOTS:</span>
+      <button class="mode-btn" data-diff="easy">EASY</button>
+      <button class="mode-btn" data-diff="hard">HARD</button>
+    </div>
+
+    <!-- Grouped by team: RED (P1, P3) then BLUE (P2, P4). Only the mode's slots are shown. -->
+    <div class="slots">
+      <div id="slot-1" class="slot">P1 &middot; RED<span class="state">WAITING...</span></div>
+      <div id="slot-3" class="slot hidden">P3 &middot; RED<span class="state">WAITING...</span></div>
+      <div id="slot-2" class="slot">P2 &middot; BLUE<span class="state">WAITING...</span></div>
+      <div id="slot-4" class="slot hidden">P4 &middot; BLUE<span class="state">WAITING...</span></div>
+    </div>
+
+    <button id="lobby-start" class="btn hidden">START</button>
+    <p id="lobby-need" class="hint"></p>
 
     <p id="localhost-warn" class="warn hidden">
       PHONES CAN'T OPEN "LOCALHOST".<br>OPEN THIS PAGE VIA YOUR COMPUTER'S IP ADDRESS
       SO THE QR CODE WORKS.
     </p>
-    <p class="hint">NO PHONES? PRESS SPACE TO PLAY WITH KEYBOARD<br>P1: W / S &nbsp; P2: &uarr; / &darr;</p>
+    <p class="hint">P1'S PHONE CAN ALSO PICK THE MODE AND START<br>NO PHONES? PRESS SPACE TO PLAY WITH KEYBOARD &middot; P1: W / S &nbsp; P2: &uarr; / &darr;</p>
   </section>
 
   <section id="game-screen" class="screen hidden">
@@ -303,6 +344,13 @@
     const SPIN_HEAVY = 0.7;         // show "SPIN!" at or above this
     const CODE_LETTERS = "ABCDEFGHJKLMNPQRSTUVWXYZ"; // no I/O, easy to read aloud
 
+    // ---- Teams and modes ----
+    // Team RED = P1 + P3 on the left, team BLUE = P2 + P4 on the right.
+    // P1/P2 are the BACK bats (by the edge); P3/P4 are FRONT bats near the net (2v2, co-op).
+    const TEAM_OF = { 1: "red", 2: "blue", 3: "red", 4: "blue" };
+    const FRONT_X = 250;  // front bats' distance from their own edge
+    const MODE_PLAYERS = { "1v1": [1, 2], "2v2": [1, 2, 3, 4], "coop": [1, 3] }; // phones needed
+
     const $ = (id) => document.getElementById(id);
     const screens = { home: $("home"), lobby: $("lobby"), game: $("game-screen") };
     const canvas = $("game");
@@ -313,17 +361,22 @@
     let roomCode = null;
     let phase = "home";        // home | lobby | serve | play | paused | over
     let keyboardMode = false;  // started with SPACE, so no phones are required
-    const joined = { 1: false, 2: false };
-    // twist = phone twist spin (-1..1); vel = bat's vertical speed in px/s (for swipe spin).
-    const paddles = {
-      1: { y: 0.5, target: 0.5, twist: 0, vel: 0 },
-      2: { y: 0.5, target: 0.5, twist: 0, vel: 0 },
-    };
-    const score = { 1: 0, 2: 0 };
+    let mode = "1v1";          // "1v1" | "2v2" | "coop"
+    let difficulty = "easy";   // co-op bots: "easy" | "hard"
+    const joined = { 1: false, 2: false, 3: false, 4: false };
+    // One paddle per player slot. twist = phone twist spin (-1..1);
+    // vel = bat's vertical speed in px/s (for swipe spin).
+    const paddles = {};
+    for (const n of [1, 2, 3, 4]) paddles[n] = { y: 0.5, target: 0.5, twist: 0, vel: 0 };
+    // Bats in the current match, front bats first (the ball reaches them first):
+    // { id: player number, team, bot }
+    let bats = [];
+    const DEMO_BATS = [{ id: 1, team: "red", bot: false }, { id: 2, team: "blue", bot: false }];
+    const score = { red: 0, blue: 0 };
     // speed is the rally's base speed; smash = this shot was smashed (moves SMASH_BOOST x faster).
     const ball = { x: 0, y: 0, vx: 0, vy: 0, speed: START_SPEED, smash: false, spin: 0 };
     let rally = 0;             // bat hits since the last serve
-    const smashAt = { 1: -Infinity, 2: -Infinity }; // when each phone last shook (seconds)
+    const smashAt = { 1: -Infinity, 2: -Infinity, 3: -Infinity, 4: -Infinity }; // last phone shake (s)
     let serveTimer = 0, serveDir = 1;
     const keys = new Set();
 
@@ -369,28 +422,44 @@
 
     socket.on("connect", () => {
       // Re-register after a reconnect (e.g. server restart) so phones can find us.
-      if (roomCode) socket.emit("create_room", { room: roomCode });
+      if (!roomCode) return;
+      socket.emit("create_room", { room: roomCode });
+      if (phase === "lobby") socket.emit("set_mode", { room: roomCode, mode, difficulty });
+      else socket.emit("match_start", { room: roomCode }); // server: we're mid-match
     });
 
-    socket.on("player_joined", ({ player }) => {
-      if (player !== 1 && player !== 2) return;
-      if (!joined[player]) sfx.join();
-      setJoined(player, true);
-      if (phase === "lobby" && joined[1] && joined[2]) startMatch();
-      else if (phase === "paused" && joined[1] && joined[2]) serve(serveDir);
-    });
+    const isBot = (player) => mode === "coop" && TEAM_OF[player] === "blue";
+    const lobbyReady = () => MODE_PLAYERS[mode].every((n) => joined[n]);
 
-    socket.on("player_left", ({ player }) => {
-      if (player !== 1 && player !== 2) return;
-      setJoined(player, false);
-      latency[player] = null;
+    // Who is in the room, the mode and the lobby/game state (sent on every change).
+    socket.on("room_state", (st) => {
+      if (!st || !Array.isArray(st.players)) return;
+      // The mode only changes in the lobby; mid-match the host's own mode wins.
+      if (phase === "lobby" && st.mode in MODE_PLAYERS) {
+        mode = st.mode;
+        if (st.difficulty === "easy" || st.difficulty === "hard") difficulty = st.difficulty;
+      }
+      for (const n of [1, 2, 3, 4]) {
+        const on = st.players.includes(n);
+        if (on && !joined[n]) sfx.join();
+        if (!on) latency[n] = null;
+        joined[n] = on;
+      }
       showLatency();
-      if (!keyboardMode && (phase === "serve" || phase === "play")) phase = "paused";
+      renderLobby();
+      // Someone needed dropped out mid-match: pause until they rejoin.
+      if (!keyboardMode && (phase === "serve" || phase === "play") && !lobbyReady()) phase = "paused";
+      else if (phase === "paused" && lobbyReady()) serve(serveDir);
+    });
+
+    // Captain's phone tapped START.
+    socket.on("start_game", ({ player }) => {
+      if (phase === "lobby" && player === 1 && lobbyReady()) startMatch();
     });
 
     socket.on("paddle", ({ player, y, spin }) => {
       const p = paddles[player];
-      if (!p || typeof y !== "number") return;
+      if (!p || typeof y !== "number" || isBot(player)) return;
       p.twist = typeof spin === "number" ? Math.min(1, Math.max(-1, spin)) : 0;
       // A held key wins over the phone, so keyboard testing works alongside phones.
       if (keyHeld(player)) return;
@@ -398,17 +467,17 @@
     });
 
     // ---- Live latency (round trip phone <-> server, measured on the phone) ----
-    const latency = { 1: null, 2: null };
+    const latency = { 1: null, 2: null, 3: null, 4: null };
 
     function showLatency() {
-      const parts = [1, 2].filter((p) => latency[p] !== null)
+      const parts = [1, 2, 3, 4].filter((p) => latency[p] !== null)
         .map((p) => `<span class="p${p}">P${p}</span> ${latency[p]}ms`);
       $("latency").innerHTML = parts.join(" &middot; ");
       $("latency").classList.toggle("hidden", parts.length === 0);
     }
 
     socket.on("latency", ({ player, ms }) => {
-      if ((player !== 1 && player !== 2) || typeof ms !== "number") return;
+      if (!(player in latency) || typeof ms !== "number") return;
       latency[player] = ms;
       showLatency();
     });
@@ -418,7 +487,7 @@
     });
 
     socket.on("smash", ({ player }) => {
-      if (player === 1 || player === 2) smashAt[player] = performance.now() / 1000;
+      if (player in smashAt) smashAt[player] = performance.now() / 1000;
     });
 
     // Tell one phone to buzz/flash: "hit" when its bat strikes the ball, "concede" on losing a point.
@@ -426,15 +495,35 @@
       if (roomCode) socket.emit("hit", { room: roomCode, player, type });
     }
 
+    // Team scores: p1 = RED, p2 = BLUE (same field names as before).
     function emitScore() {
-      socket.emit("score", { room: roomCode, p1: score[1], p2: score[2] });
+      socket.emit("score", { room: roomCode, p1: score.red, p2: score.blue });
     }
 
-    function setJoined(player, on) {
-      joined[player] = on;
-      const slot = $(`slot-${player}`);
-      slot.classList.toggle("on", on);
-      slot.querySelector(".state").textContent = on ? "READY!" : "WAITING...";
+    // ---- Lobby: mode buttons, slots, START (kept in sync with the captain's phone) ----
+    function renderLobby() {
+      for (const btn of document.querySelectorAll("[data-mode]")) btn.classList.toggle("on", btn.dataset.mode === mode);
+      for (const btn of document.querySelectorAll("[data-diff]")) btn.classList.toggle("on", btn.dataset.diff === difficulty);
+      $("difficulty").classList.toggle("hidden", mode !== "coop");
+      for (const n of [1, 2, 3, 4]) {
+        const slot = $(`slot-${n}`);
+        slot.classList.toggle("hidden", !MODE_PLAYERS[mode].includes(n));
+        slot.classList.toggle("on", joined[n]);
+        slot.querySelector(".state").textContent = joined[n] ? "READY!" : "WAITING...";
+      }
+      const missing = MODE_PLAYERS[mode].filter((n) => !joined[n]);
+      $("lobby-start").classList.toggle("hidden", missing.length > 0);
+      $("lobby-need").textContent = missing.length
+        ? `WAITING FOR ${missing.map((n) => `P${n}`).join(", ")}` : "READY! PRESS START (OR START ON P1'S PHONE)";
+    }
+
+    function chooseMode(newMode, newDifficulty) {
+      if (phase !== "lobby") return;
+      mode = newMode;
+      difficulty = newDifficulty;
+      renderLobby();
+      // The server re-packs phones into the new mode's slots and tells everyone.
+      socket.emit("set_mode", { room: roomCode, mode, difficulty });
     }
 
     // ---- Lobby ----
@@ -467,14 +556,35 @@
       $("localhost-warn").classList.toggle("hidden", !local);
 
       socket.emit("create_room", { room: roomCode });
+      socket.emit("set_mode", { room: roomCode, mode, difficulty });
       phase = "lobby";
       startAttract();
+      renderLobby();
       show("lobby");
     }
 
+    // Back to the lobby (not enough players for a rematch, or the captain wants a new mode).
+    function backToLobby() {
+      overlay.classList.add("hidden");
+      phase = "lobby";
+      socket.emit("lobby_open", { room: roomCode });
+      startAttract();
+      renderLobby();
+      show("lobby");
+    }
+
+    // Bats for the chosen mode. Co-op: BLUE's two bats are bots.
+    function setupBats() {
+      const ids = mode === "1v1" ? [1, 2] : [3, 4, 1, 2]; // front bats first
+      bats = ids.map((id) => ({ id, team: TEAM_OF[id], bot: isBot(id) }));
+      for (const n of [1, 2, 3, 4]) Object.assign(paddles[n], { y: 0.5, target: 0.5, vel: 0 });
+    }
+    setupBats();
+
     // ---- Game flow ----
     function startMatch() {
-      score[1] = 0; score[2] = 0;
+      setupBats();
+      score.red = 0; score.blue = 0;
       emitScore();
       socket.emit("match_start", { room: roomCode });
       overlay.classList.add("hidden");
@@ -491,7 +601,7 @@
       ball.smash = false;
       ball.spin = 0;
       rally = 0;
-      smashAt[1] = smashAt[2] = -Infinity;
+      for (const n of [1, 2, 3, 4]) smashAt[n] = -Infinity;
       serveTimer = SERVE_DELAY;
       phase = "serve";
     }
@@ -503,40 +613,46 @@
       phase = "play";
     }
 
-    function pointTo(player) {
-      score[player]++;
+    function winLabel(team) {
+      if (mode === "1v1") return `PLAYER ${team === "red" ? 1 : 2} WINS`;
+      if (mode === "coop" && team === "blue") return "BOTS WIN";
+      return `${team.toUpperCase()} TEAM WINS`;
+    }
+
+    function pointTo(team) {
+      score[team]++;
       emitScore();
-      emitHit(player === 1 ? 2 : 1, "concede");
+      // Buzz every human phone on the team that conceded.
+      for (const b of bats) if (b.team !== team && !b.bot) emitHit(b.id, "concede");
       sfx.point();
-      if (score[player] >= WIN_SCORE) {
+      if (score[team] >= WIN_SCORE) {
         phase = "over";
-        $("winner").textContent = `PLAYER ${player} WINS`;
-        $("winner").className = `p${player}`;
+        const label = winLabel(team);
+        $("winner").textContent = label;
+        $("winner").className = team;
         overlay.classList.remove("hidden");
         startConfetti();
-        socket.emit("game_over", { room: roomCode, winner: player });
+        socket.emit("game_over", { room: roomCode, winner: team, label });
         $("again-btn").focus();
         sfx.win();
       } else {
-        // Serve towards the player who just conceded.
-        serve(player === 1 ? 1 : -1);
+        // Serve towards the team that just conceded.
+        serve(team === "red" ? 1 : -1);
       }
     }
 
     function playAgain() {
       initAudio();
-      if (keyboardMode || (joined[1] && joined[2])) {
-        startMatch();
-      } else {
-        overlay.classList.add("hidden");
-        phase = "lobby";
-        startAttract();
-        show("lobby");
-      }
+      if (keyboardMode || lobbyReady()) startMatch();
+      else backToLobby();
     }
 
     // ---- Physics ----
-    const paddleX = (player) => (player === 1 ? PADDLE_MARGIN : W - PADDLE_MARGIN - PADDLE_W);
+    // Left edge of a bat's hitbox. P3/P4 always play the front (near the net).
+    function paddleX(player) {
+      const inset = player >= 3 ? FRONT_X : PADDLE_MARGIN;
+      return TEAM_OF[player] === "red" ? inset : W - inset - PADDLE_W;
+    }
     const paddleTop = (player) => paddles[player].y * (H - PADDLE_H);
 
     function hitsPaddle(player) {
@@ -558,10 +674,11 @@
       // Only this shot is boosted: the next hit uses the normal ball.speed again.
       ball.smash = performance.now() / 1000 - smashAt[player] <= SMASH_WINDOW;
       const speed = ball.speed * (ball.smash ? SMASH_BOOST : 1);
-      const dir = player === 1 ? 1 : -1;
+      const red = TEAM_OF[player] === "red";
+      const dir = red ? 1 : -1;
       ball.vx = dir * speed * Math.cos(angle);
       ball.vy = speed * Math.sin(angle);
-      ball.x = player === 1 ? paddleX(1) + PADDLE_W : paddleX(2) - BALL;
+      ball.x = red ? paddleX(player) + PADDLE_W : paddleX(player) - BALL;
 
       // Spin = how fast the bat was moving up/down at contact + the phone's twist.
       // Each hit replaces the old spin. Small amounts are ignored (dead zone).
@@ -578,7 +695,7 @@
         socket.emit("smash_landed", { room: roomCode, player });
       } else {
         sfx.paddle();
-        emitHit(player, "hit"); // a smash already buzzes the phone via smash_landed
+        if (!isBot(player)) emitHit(player, "hit"); // a smash already buzzes the phone via smash_landed
       }
     }
 
@@ -595,11 +712,13 @@
       if (ball.y <= 0) { ball.y = 0; ball.vy = Math.abs(ball.vy); sfx.wall(); }
       else if (ball.y + BALL >= H) { ball.y = H - BALL; ball.vy = -Math.abs(ball.vy); sfx.wall(); }
 
-      if (ball.vx < 0 && hitsPaddle(1)) bounceOff(1);
-      else if (ball.vx > 0 && hitsPaddle(2)) bounceOff(2);
+      // Only the team the ball is heading towards can hit it (front bat first).
+      const team = ball.vx < 0 ? "red" : "blue";
+      const hitter = bats.find((b) => b.team === team && hitsPaddle(b.id));
+      if (hitter) bounceOff(hitter.id);
 
-      if (ball.x + BALL < 0) pointTo(2);
-      else if (ball.x > W) pointTo(1);
+      if (ball.x + BALL < 0) pointTo("blue");
+      else if (ball.x > W) pointTo("red");
     }
 
     // ---- Attract mode: computer-controlled demo rally shown behind the lobby ----
@@ -641,17 +760,21 @@
       else if (ball.vx > 0 && ball.x + BALL >= paddleX(2)) { ball.x = paddleX(2) - BALL; demoLaunch(-1); }
     }
 
+    // Keyboard: W/S moves P1; the arrows move P2 (P3 in co-op, where P2 is a bot).
+    const arrowsPlayer = () => (mode === "coop" ? 3 : 2);
+
     function keyHeld(player) {
-      return player === 1 ? keys.has("w") || keys.has("s")
-                          : keys.has("ArrowUp") || keys.has("ArrowDown");
+      if (player === 1) return keys.has("w") || keys.has("s");
+      return player === arrowsPlayer() && (keys.has("ArrowUp") || keys.has("ArrowDown"));
     }
 
     function update(dt) {
       // Keyboard fallback
       const dir1 = (keys.has("s") ? 1 : 0) - (keys.has("w") ? 1 : 0);
       const dir2 = (keys.has("ArrowDown") ? 1 : 0) - (keys.has("ArrowUp") ? 1 : 0);
+      const p2 = paddles[arrowsPlayer()];
       paddles[1].target = Math.min(1, Math.max(0, paddles[1].target + dir1 * KEY_SPEED * dt));
-      paddles[2].target = Math.min(1, Math.max(0, paddles[2].target + dir2 * KEY_SPEED * dt));
+      p2.target = Math.min(1, Math.max(0, p2.target + dir2 * KEY_SPEED * dt));
 
       // Ease towards the target (lerp 0.25 per 60 fps frame, scaled for other
       // frame rates) so ~30 Hz phone updates look smooth instead of jumping.
@@ -691,8 +814,13 @@
     const lctx = low.getContext("2d");
 
     const COL = {
-      p1: { main: "#d93a3a", shade: "#9c2020", hi: "#ff8a7a" },
-      p2: { main: "#2f5bd8", shade: "#1c3591", hi: "#86a6ff" },
+      // Bat rubber per player: two shades per team (RED: P1, P3; BLUE: P2, P4).
+      bats: {
+        1: { main: "#d93a3a", shade: "#9c2020", hi: "#ff8a7a" },
+        3: { main: "#f07a3a", shade: "#b04a1a", hi: "#ffb88a" },
+        2: { main: "#2f5bd8", shade: "#1c3591", hi: "#86a6ff" },
+        4: { main: "#2fb0d8", shade: "#1a7390", hi: "#9ae4ff" },
+      },
       wood: "#e2b67a", woodDark: "#a77b45", handle: "#ecc890",
       table: "#23807a", tableEdge: "#11504b", line: "#f4f4ef",
       ball: "#efeee6", ballShade: "#c3c3c9",
@@ -916,21 +1044,22 @@
     // ---- Bats: round rubber head on a wooden blade, handle towards the player's edge ----
     // The head's front face sits exactly on the paddle hitbox's inner edge.
     function drawBat(player) {
-      const c = player === 1 ? COL.p1 : COL.p2;
+      const c = COL.bats[player];
+      const red = TEAM_OF[player] === "red";
       const h = Math.round(PADDLE_H * S), w = 12, hl = 9;
       const top = Math.round(TY + paddleTop(player) * S);
-      const x = player === 1
-        ? Math.round(TX + (paddleX(1) + PADDLE_W) * S) - w
-        : Math.round(TX + paddleX(2) * S);
+      const x = red
+        ? Math.round(TX + (paddleX(player) + PADDLE_W) * S) - w
+        : Math.round(TX + paddleX(player) * S);
       const cy = top + Math.round(h / 2);
-      const hx = player === 1 ? x - hl + 1 : x + w - 1;
+      const hx = red ? x - hl + 1 : x + w - 1;
 
       ellipse(lctx, x + 2, top + 2, w, h, COL.shadow);
       rect(lctx, hx + 2, cy, hl, 3, COL.shadow);
 
       rect(lctx, hx, cy - 2, hl, 4, COL.handle);
       rect(lctx, hx, cy + 1, hl, 1, COL.woodDark);
-      rect(lctx, player === 1 ? hx : hx + hl - 1, cy - 2, 1, 4, COL.woodDark);
+      rect(lctx, red ? hx : hx + hl - 1, cy - 2, 1, 4, COL.woodDark);
 
       ellipse(lctx, x, top, w, h, COL.wood);
       ellipse(lctx, x + 1, top + 1, w - 2, h - 2, c.shade);
@@ -951,9 +1080,13 @@
       const dir = phase === "play" || phase === "lobby" ? Math.sign(ball.vx) : 0;
       if (dir === 0) { arc.dir = 0; arc.h = 0; return 0; }
       if (dir !== arc.dir) {
-        // New flight: either the serve (from where the ball sits) or a bat hit (from its face).
-        arc.x0 = arc.dir === 0 ? ball.x : dir > 0 ? paddleX(1) + PADDLE_W : paddleX(2) - BALL;
-        arc.xr = dir > 0 ? paddleX(2) - BALL : paddleX(1) + PADDLE_W;
+        // New flight from where the ball is now (serve spot or the hitter's face) to the
+        // nearest bat of the receiving team.
+        const receivers = batsOnTable().filter((b) => b.team === (dir > 0 ? "blue" : "red"));
+        arc.x0 = ball.x;
+        arc.xr = dir > 0
+          ? Math.min(...receivers.map((b) => paddleX(b.id))) - BALL
+          : Math.max(...receivers.map((b) => paddleX(b.id) + PADDLE_W));
         arc.xb = arc.x0 + 0.75 * (arc.xr - arc.x0);
         arc.hStart = arc.h;
         arc.stage = 1;
@@ -1121,7 +1254,7 @@
       const x = (TX + (paddleX(p) + PADDLE_W / 2) * S) * k;
       const y = Math.max(14 * k, (TY + paddleTop(p) * S - 8 - t * 10) * k);
       ctx.globalAlpha = t > 0.7 ? (1 - t) / 0.3 : 1;
-      ctx.textAlign = p === 1 ? "left" : "right"; // keep it on screen near the edges
+      ctx.textAlign = TEAM_OF[p] === "red" ? "left" : "right"; // keep it on screen near the edges
       ctx.textBaseline = "middle";
       ctx.font = `${Math.round(12 * k)}px "Press Start 2P", monospace`;
       ctx.fillStyle = "#000";
@@ -1193,6 +1326,27 @@
     window.addEventListener("resize", fitCanvas);
     fitCanvas();
 
+    // The attract demo always uses the two back bats; a match uses the mode's bats.
+    const batsOnTable = () => (phase === "lobby" ? DEMO_BATS : bats);
+
+    // "P1", "P3", "BOT"... above each bat, in its colour (full resolution, crisp font).
+    function drawBatLabels(k) {
+      if (phase === "lobby") return;
+      ctx.font = `${Math.round(6 * k)}px "Press Start 2P", monospace`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      for (const b of bats) {
+        const text = b.bot ? "BOT" : `P${b.id}`;
+        const x = (TX + (paddleX(b.id) + PADDLE_W / 2) * S) * k;
+        let y = (TY + paddleTop(b.id) * S - 6) * k;
+        if (y < 8 * k) y = (TY + (paddleTop(b.id) + PADDLE_H) * S + 7) * k; // no room above: go below
+        ctx.fillStyle = "#000";
+        ctx.fillText(text, x + k, y + k);
+        ctx.fillStyle = COL.bats[b.id].hi;
+        ctx.fillText(text, x, y);
+      }
+    }
+
     let lastDraw = performance.now();
 
     function draw() {
@@ -1202,11 +1356,10 @@
 
       lctx.drawImage(bg, 0, 0);
       if (phase !== "lobby") {
-        drawNumber(score[1], TX + TW / 4, TY + 8, COL.p1.main);
-        drawNumber(score[2], TX + (TW * 3) / 4, TY + 8, COL.p2.main);
+        drawNumber(score.red, TX + TW / 4, TY + 8, COL.bats[1].main);
+        drawNumber(score.blue, TX + (TW * 3) / 4, TY + 8, COL.bats[2].main);
       }
-      drawBat(1);
-      drawBat(2);
+      for (const b of batsOnTable()) drawBat(b.id);
 
       if (phase === "serve" || phase === "play" || phase === "lobby") {
         const h = ballHeight(now);
@@ -1236,13 +1389,14 @@
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         ctx.globalAlpha = 1;
       }
+      drawBatLabels(k);
       drawPopText(now, k);
       drawRally(k);
       if (phase === "over") drawConfetti(dt);
 
       if (phase === "paused") {
         // Text is drawn at full resolution so Press Start 2P stays sharp.
-        const missing = [1, 2].filter((p) => !joined[p]);
+        const missing = MODE_PLAYERS[mode].filter((p) => !joined[p]);
         ctx.fillStyle = "rgba(20, 14, 20, 0.88)";
         ctx.fillRect(canvas.width / 2 - 130 * k, canvas.height / 2 - 26 * k, 260 * k, 52 * k);
         ctx.fillStyle = COL.line;
@@ -1285,7 +1439,7 @@
       } else if (key === " " && phase === "lobby") {
         keyboardMode = true;
         initAudio();
-        startMatch();
+        startMatch(); // keyboard play uses the mode picked in the lobby
         e.preventDefault();
       }
     });
@@ -1298,6 +1452,13 @@
 
     $("start-btn").addEventListener("click", openLobby);
     $("again-btn").addEventListener("click", playAgain);
+    $("lobby-start").addEventListener("click", () => { initAudio(); if (lobbyReady()) startMatch(); });
+    for (const btn of document.querySelectorAll("[data-mode]")) {
+      btn.addEventListener("click", () => chooseMode(btn.dataset.mode, difficulty));
+    }
+    for (const btn of document.querySelectorAll("[data-diff]")) {
+      btn.addEventListener("click", () => chooseMode(mode, btn.dataset.diff));
+    }
   })();
   </script>
 </body>
