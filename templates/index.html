@@ -11,10 +11,25 @@
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
+    :root {
+      --bg: #1c1519;
+      --tile-a: #281e23;
+      --tile-b: #201819;
+      --cream: #f4efe4;
+      --muted: #c2b09c;
+      --red: #e04848;
+      --blue: #3f6fe6;
+      --teal: #23807a;
+      --gold: #ffd166;
+    }
+
     html, body {
       height: 100%;
-      background: #000;
-      color: #fff;
+      /* Dark kitchen floor tiles behind every screen */
+      background-color: var(--bg);
+      background-image: repeating-conic-gradient(var(--tile-a) 0 25%, var(--tile-b) 0 50%);
+      background-size: 64px 64px;
+      color: var(--cream);
       font-family: "Press Start 2P", monospace;
       overflow: hidden;
     }
@@ -36,29 +51,33 @@
       font-size: clamp(1.8rem, 8vw, 4.5rem);
       letter-spacing: 0.15em;
       line-height: 1.3;
-      text-shadow: 4px 4px 0 #444;
+      text-shadow: 4px 4px 0 #000, 8px 8px 0 rgba(0, 0, 0, 0.35);
     }
+
+    h1 .p1 { color: var(--red); }
+    h1 .p2 { color: var(--blue); }
 
     .subtitle, .hint {
       font-size: clamp(0.5rem, 1.6vw, 0.75rem);
-      color: #aaa;
+      color: var(--muted);
       line-height: 2;
     }
 
     .btn {
       font-family: inherit;
       font-size: clamp(0.9rem, 3vw, 1.3rem);
-      color: #fff;
-      background: #000;
-      border: 4px solid #fff;
+      color: var(--cream);
+      background: var(--teal);
+      border: 4px solid var(--cream);
+      box-shadow: 6px 6px 0 #000;
       padding: 1rem 2rem;
       cursor: pointer;
       animation: blink 1s steps(1) infinite;
     }
 
     .btn:hover, .btn:focus-visible {
-      background: #fff;
-      color: #000;
+      background: var(--cream);
+      color: var(--teal);
       animation: none;
       outline: none;
     }
@@ -74,21 +93,25 @@
       flex-wrap: wrap;
     }
 
-    .label { font-size: clamp(0.6rem, 1.6vw, 0.9rem); color: #aaa; margin-bottom: 1rem; }
+    .label { font-size: clamp(0.6rem, 1.6vw, 0.9rem); color: var(--muted); margin-bottom: 1rem; }
 
     #room-code {
       font-size: clamp(3rem, 12vw, 7rem);
       letter-spacing: 0.15em;
-      text-shadow: 6px 6px 0 #444;
+      color: var(--cream);
+      text-shadow: 6px 6px 0 var(--teal), 10px 10px 0 #000;
     }
 
-    #join-url { font-size: clamp(0.45rem, 1.2vw, 0.65rem); color: #aaa; margin-top: 1rem; word-break: break-all; }
+    #join-url { font-size: clamp(0.45rem, 1.2vw, 0.65rem); color: var(--muted); margin-top: 1rem; word-break: break-all; }
 
+    /* Plain white quiet zone keeps the QR scannable; the frame is an outline so sizes don't change. */
     #qr {
       background: #fff;
       padding: 12px;
       width: calc(200px + 24px);
       height: calc(200px + 24px);
+      outline: 4px solid var(--teal);
+      box-shadow: 10px 10px 0 #000;
     }
 
     #qr img, #qr canvas { display: block; image-rendering: pixelated; }
@@ -96,8 +119,9 @@
     .slots { display: flex; gap: 2rem; flex-wrap: wrap; justify-content: center; }
 
     .slot {
-      border: 4px dashed #444;
-      color: #444;
+      border: 4px dashed #6a5860;
+      color: #8a7880;
+      background: rgba(0, 0, 0, 0.35);
       padding: 1rem 1.5rem;
       font-size: clamp(0.7rem, 2vw, 1rem);
       line-height: 2;
@@ -107,24 +131,31 @@
 
     .slot .state { display: block; font-size: 0.6em; }
 
+    #slot-1 { border-color: rgba(224, 72, 72, 0.6); }
+    #slot-2 { border-color: rgba(63, 111, 230, 0.6); }
+
     .slot.on {
       border-style: solid;
-      border-color: #fff;
-      color: #000;
-      background: #fff;
+      border-color: var(--cream);
+      color: var(--cream);
+      box-shadow: 6px 6px 0 #000;
     }
 
-    .warn { color: #fff; font-size: clamp(0.45rem, 1.2vw, 0.6rem); line-height: 2; border: 2px solid #fff; padding: 0.75rem; max-width: 40rem; }
+    #slot-1.on { background: var(--red); }
+    #slot-2.on { background: var(--blue); }
+
+    .warn { color: var(--gold); font-size: clamp(0.45rem, 1.2vw, 0.6rem); line-height: 2; border: 2px solid var(--gold); background: rgba(0, 0, 0, 0.5); padding: 0.75rem; max-width: 40rem; }
 
     /* ---- Game ---- */
     #game-screen { position: relative; }
 
+    /* Size is set from JS (fitCanvas) so the low-res scene scales up evenly. */
     #game {
       display: block;
-      width: min(96vw, calc(96vh * 1.6));
-      height: auto;
-      border: 4px solid #fff;
+      border: 4px solid var(--cream);
+      box-shadow: 8px 8px 0 #000;
       image-rendering: pixelated;
+      image-rendering: crisp-edges;
     }
 
     #overlay {
@@ -135,13 +166,14 @@
       align-items: center;
       justify-content: center;
       gap: 2.5rem;
-      background: rgba(0, 0, 0, 0.85);
+      background: rgba(20, 14, 20, 0.82);
     }
 
     #winner {
       font-size: clamp(1.4rem, 6vw, 3.5rem);
       line-height: 1.5;
-      text-shadow: 4px 4px 0 #444;
+      color: var(--cream);
+      text-shadow: 4px 4px 0 var(--teal), 8px 8px 0 #000;
     }
 
     /* Faint CRT scanlines for retro feel */
@@ -158,7 +190,7 @@
 </head>
 <body>
   <main id="home" class="screen">
-    <h1>PHONE<br>PONG</h1>
+    <h1><span class="p1">PHONE</span><br><span class="p2">PONG</span></h1>
     <button id="start-btn" class="btn">START GAME</button>
     <p class="subtitle">TILT YOUR PHONE TO MOVE<br>KCL FIRSTYEARHACK 2026</p>
   </main>
@@ -464,42 +496,405 @@
       }
     }
 
-    // ---- Drawing ----
-    function centreText(text, y, size) {
-      ctx.font = `${size}px "Press Start 2P", monospace`;
-      ctx.textAlign = "center";
-      ctx.fillText(text, W / 2, y);
+    // ---- Drawing: pixel-art "table tennis in a kitchen" ----
+    // VISUAL ONLY. Reads game state (ball, paddles, score, phase) but never writes it.
+    // The scene is drawn on a small low-res canvas, then scaled up with smoothing off.
+    // The table is exactly the W x H game area, mapped by S, so gameplay is unchanged.
+    const S = 0.4;                          // game units -> low-res pixels
+    const TX = 32, TY = 36;                 // table's top-left corner in low-res pixels
+    const TW = W * S, TH = H * S;           // table: 320 x 200
+    const LW = TW + TX * 2, LH = TH + TY * 2; // whole scene: 384 x 272
+
+    const low = document.createElement("canvas");
+    low.width = LW; low.height = LH;
+    const lctx = low.getContext("2d");
+
+    const COL = {
+      p1: { main: "#d93a3a", shade: "#9c2020", hi: "#ff8a7a" },
+      p2: { main: "#2f5bd8", shade: "#1c3591", hi: "#86a6ff" },
+      wood: "#e2b67a", woodDark: "#a77b45", handle: "#ecc890",
+      table: "#23807a", tableEdge: "#11504b", line: "#f4f4ef",
+      ball: "#efeee6", ballShade: "#c3c3c9",
+      shadow: "rgba(0, 18, 16, 0.38)",
+    };
+
+    function rect(c, x, y, w, h, col) {
+      c.fillStyle = col;
+      c.fillRect(x, y, w, h);
     }
 
-    function draw() {
-      ctx.fillStyle = "#000";
-      ctx.fillRect(0, 0, W, H);
-      ctx.fillStyle = "#fff";
+    // Filled pixel ellipse inside the box (x, y, w, h), drawn as 1px rows (crisp, no AA).
+    function ellipse(c, x, y, w, h, col) {
+      c.fillStyle = col;
+      for (let r = 0; r < h; r++) {
+        const dy = (r + 0.5 - h / 2) / (h / 2);
+        const half = (w / 2) * Math.sqrt(Math.max(0, 1 - dy * dy));
+        const x0 = Math.round(x + w / 2 - half), x1 = Math.round(x + w / 2 + half);
+        if (x1 > x0) c.fillRect(x0, y + r, x1 - x0, 1);
+      }
+    }
 
-      for (let y = 10; y < H; y += 30) ctx.fillRect(W / 2 - 3, y, 6, 15);
+    // ---- Static background (kitchen + table + net), built once ----
+    const bg = document.createElement("canvas");
+    bg.width = LW; bg.height = LH;
 
-      ctx.font = '40px "Press Start 2P", monospace';
-      ctx.textAlign = "center";
-      ctx.fillText(score[1], W / 4, 70);
-      ctx.fillText(score[2], (W * 3) / 4, 70);
+    function buildBackground() {
+      const b = bg.getContext("2d");
+      let seed = 1337; // deterministic "random" so the kitchen looks the same every time
+      const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
 
-      ctx.fillRect(paddleX(1), paddleTop(1), PADDLE_W, PADDLE_H);
-      ctx.fillRect(paddleX(2), paddleTop(2), PADDLE_W, PADDLE_H);
+      // Checkered floor tiles
+      for (let ty = 0; ty < LH; ty += 16) {
+        for (let tx = 0; tx < LW; tx += 16) {
+          rect(b, tx, ty, 16, 16, ((tx + ty) / 16) % 2 === 0 ? "#c4b294" : "#8c7461");
+          rect(b, tx, ty, 16, 1, "rgba(60, 40, 30, 0.35)");
+          rect(b, tx, ty, 1, 16, "rgba(60, 40, 30, 0.35)");
+        }
+      }
+      for (let i = 0; i < 260; i++) rect(b, (rnd() * LW) | 0, (rnd() * LH) | 0, 1, 1, "rgba(60, 40, 30, 0.25)");
 
-      if (phase === "serve" || phase === "play") {
-        // Blink the ball while waiting to serve.
-        if (phase === "play" || Math.floor(serveTimer * 6) % 2 === 0) {
-          ctx.fillRect(ball.x, ball.y, BALL, BALL);
+      // A counter seen from above: tiled backsplash at the wall, worktop, lip facing the room.
+      function counter(x, y, w, h, wallOnTop) {
+        const splashY = wallOnTop ? y : y + h - 4;
+        rect(b, x, splashY, w, 4, "#e6dccb");
+        for (let i = x; i < x + w; i += 6) rect(b, i, splashY, 1, 4, "#b8ab96");
+        const topY = wallOnTop ? y + 4 : y + 3;
+        rect(b, x, topY, w, h - 7, "#b88a5c");
+        for (let i = 0; i < (w * (h - 7)) / 40; i++) {
+          rect(b, x + ((rnd() * w) | 0), topY + ((rnd() * (h - 7)) | 0), 3 + ((rnd() * 5) | 0), 1, "rgba(90, 55, 30, 0.35)");
+        }
+        if (wallOnTop) {
+          rect(b, x, y + h - 3, w, 1, "#e3bd8c");
+          rect(b, x, y + h - 2, w, 2, "#5e4029");
+          rect(b, x, y + h, w, 2, "rgba(0, 0, 0, 0.25)"); // shadow on the floor
+        } else {
+          rect(b, x, y, w, 2, "#5e4029");
+          rect(b, x, y + 2, w, 1, "#e3bd8c");
         }
       }
 
+      // Top counter (fridge takes the top-left corner)
+      counter(32, 0, LW - 32, 28, true);
+
+      // Chopping board with a tomato and a knife
+      rect(b, 56, 8, 30, 14, "#a9814f");
+      rect(b, 57, 9, 28, 12, "#dcb57d");
+      ellipse(b, 60, 10, 8, 8, "#c8352b");
+      rect(b, 63, 10, 2, 1, "#4f8f3a");
+      ellipse(b, 70, 13, 5, 5, "#d9473a");
+      ellipse(b, 71, 14, 3, 3, "#f08a78");
+      rect(b, 78, 10, 2, 8, "#d3d9dd");
+      rect(b, 78, 18, 2, 3, "#3a2a20");
+
+      // Hob: four burners, one glowing, a frying pan with an egg
+      rect(b, 150, 5, 48, 20, "#4a4a52");
+      rect(b, 151, 6, 46, 18, "#24242a");
+      for (const [cx, cy, hot] of [[160, 10, false], [160, 19, false], [184, 10, false], [184, 19, true]]) {
+        ellipse(b, cx - 4, cy - 4, 8, 8, hot ? "#c0442a" : "#5a5a62");
+        ellipse(b, cx - 2, cy - 2, 4, 4, hot ? "#ff7a3a" : "#24242a");
+      }
+      rect(b, 191, 9, 10, 2, "#2a2a2e");     // pan handle
+      ellipse(b, 177, 3, 15, 15, "#38383f");
+      ellipse(b, 178, 4, 13, 13, "#55555e");
+      ellipse(b, 179, 6, 9, 8, "#f4f1e6");   // egg white
+      ellipse(b, 182, 8, 4, 4, "#f2b630");   // yolk
+
+      // Fruit bowl
+      ellipse(b, 244, 6, 18, 18, "#e8e2d4");
+      ellipse(b, 246, 8, 14, 14, "#c9c2b2");
+      ellipse(b, 247, 9, 6, 6, "#e8a33a");
+      ellipse(b, 252, 12, 6, 6, "#7fb03c");
+      ellipse(b, 247, 15, 5, 5, "#d63a2f");
+
+      // Kettle
+      ellipse(b, 296, 7, 14, 14, "#b9c0c6");
+      ellipse(b, 299, 10, 8, 8, "#8f979e");
+      rect(b, 302, 13, 2, 2, "#2a2a2a");
+      rect(b, 310, 13, 4, 2, "#8f979e");
+
+      // Spice jars
+      [["#c9572e", 330], ["#e2c044", 338], ["#6a8f3a", 346]].forEach(([c, x]) => {
+        ellipse(b, x, 10, 6, 6, "#3a2a20");
+        ellipse(b, x + 1, 11, 4, 4, c);
+      });
+
+      // Bottom counter (plant stands in the bottom-right corner)
+      counter(0, LH - 28, LW - 32, 28, false);
+      const by = LH - 28;
+
+      // Toaster with two slices
+      rect(b, 58, by + 6, 24, 14, "#8f979e");
+      rect(b, 59, by + 7, 22, 12, "#c7ccd0");
+      rect(b, 63, by + 9, 14, 3, "#3a3a3a");
+      rect(b, 63, by + 14, 14, 3, "#3a3a3a");
+      rect(b, 64, by + 10, 12, 1, "#d9a35a");
+      rect(b, 64, by + 15, 12, 1, "#d9a35a");
+
+      // Tea towel
+      rect(b, 100, by + 7, 12, 11, "#d65a5a");
+      rect(b, 100, by + 10, 12, 1, "#f4efe4");
+      rect(b, 100, by + 14, 12, 1, "#f4efe4");
+
+      // Double sink with a tap at the wall side
+      rect(b, 138, by + 4, 60, 19, "#c7ced3");
+      rect(b, 139, by + 5, 58, 17, "#9aa3a9");
+      rect(b, 143, by + 7, 32, 12, "#6b757c");
+      rect(b, 143, by + 7, 32, 2, "#525b61");
+      ellipse(b, 157, by + 12, 4, 4, "#3b4247");
+      rect(b, 179, by + 7, 14, 12, "#6b757c");
+      rect(b, 179, by + 7, 14, 2, "#525b61");
+      rect(b, 175, by + 18, 3, 5, "#dde2e5");
+      rect(b, 176, by + 14, 1, 5, "#dde2e5");
+
+      // Stack of plates and a mug of coffee
+      ellipse(b, 208, by + 5, 16, 16, "#f2efe8");
+      ellipse(b, 211, by + 8, 10, 10, "#dcd7cc");
+      ellipse(b, 232, by + 8, 9, 9, "#3d6fb0");
+      ellipse(b, 234, by + 10, 5, 5, "#5a3a26");
+      rect(b, 241, by + 11, 2, 3, "#3d6fb0");
+
+      // Fridge in the top-left corner
+      rect(b, 2, 2, 31, 34, "rgba(0, 0, 0, 0.3)");
+      rect(b, 0, 0, 31, 34, "#8b9298");
+      rect(b, 0, 0, 30, 33, "#dfe3e6");
+      rect(b, 0, 0, 30, 1, "#f4f6f7");
+      for (let i = 0; i < 4; i++) rect(b, 4, 4 + i * 2, 22, 1, "#b8bec3"); // vent grille
+      rect(b, 7, 15, 9, 11, "#a8742e");      // cereal box on top
+      rect(b, 8, 16, 7, 9, "#e2a640");
+      rect(b, 9, 19, 5, 2, "#f4efe4");
+      rect(b, 5, 31, 14, 2, "#7d858b");      // door handle
+
+      // Potted plant in the bottom-right corner
+      const px = LW - 30, py = LH - 30;
+      ellipse(b, px + 2, py + 3, 24, 24, "rgba(0, 0, 0, 0.3)");
+      ellipse(b, px, py, 24, 24, "#b5653a");
+      ellipse(b, px + 2, py + 2, 20, 20, "#8f4a28");
+      ellipse(b, px + 4, py + 4, 16, 16, "#4a3326");
+      const cx = px + 12, cy = py + 12;
+      [
+        [-11, -14, 7, 12, "#2f6b35"], [2, -16, 7, 13, "#3f8f45"], [-16, -4, 12, 7, "#3f8f45"],
+        [5, -5, 12, 7, "#2f6b35"], [-6, 2, 7, 11, "#5fb35a"], [-5, -9, 9, 9, "#5fb35a"],
+      ].forEach(([dx, dy, w, h, c]) => ellipse(b, cx + dx, cy + dy, w, h, c));
+
+      // Darken + desaturate the kitchen a touch so the table pops
+      rect(b, 0, 0, LW, LH, "rgba(28, 18, 32, 0.32)");
+
+      // ---- Table ----
+      rect(b, TX + 2, TY + 3, TW, TH, "rgba(0, 0, 0, 0.45)"); // shadow under the edge
+      rect(b, TX, TY + TH, TW, 2, COL.tableEdge);              // table thickness
+      rect(b, TX, TY, TW, TH, COL.table);
+      for (let i = 0; i < 500; i++) {
+        rect(b, TX + ((rnd() * TW) | 0), TY + ((rnd() * TH) | 0), 1, 1, "rgba(255, 255, 255, 0.05)");
+      }
+      rect(b, TX, TY, TW, 2, COL.line);
+      rect(b, TX, TY + TH - 2, TW, 2, COL.line);
+      rect(b, TX, TY, 2, TH, COL.line);
+      rect(b, TX + TW - 2, TY, 2, TH, COL.line);
+      rect(b, TX, TY + TH / 2, TW, 1, COL.line);               // lengthways centre line
+
+      // ---- Net (replaces the old dashed line): mesh, white top tape, posts, soft shadow ----
+      const NX = TX + TW / 2;
+      rect(b, NX + 2, TY - 3, 3, TH + 6, "rgba(0, 0, 0, 0.22)");
+      for (let y = TY - 3; y < TY + TH + 3; y++) {
+        rect(b, NX - 1, y, 1, 1, y % 2 ? "rgba(30, 30, 40, 0.5)" : "#2d2d38");
+        rect(b, NX + 1, y, 1, 1, y % 2 ? "#2d2d38" : "rgba(30, 30, 40, 0.5)");
+      }
+      rect(b, NX, TY - 3, 1, TH + 6, "#f2f2f2");
+      for (const postY of [TY - 8, TY + TH + 3]) {
+        rect(b, NX - 2 + 1, postY + 1, 5, 5, "rgba(0, 0, 0, 0.35)");
+        rect(b, NX - 2, postY, 5, 5, "#6c757c");
+        rect(b, NX - 2, postY, 5, 1, "#c4cbd0");
+        rect(b, NX - 2, postY + 4, 5, 1, "#454b50");
+      }
+    }
+    buildBackground();
+
+    // ---- Score digits (3x5 pixel font, scaled 3x, 1px dark outline) ----
+    const DIGITS = [
+      "111101101101111", "010110010010111", "111001111100111", "111001111001111", "101101111001001",
+      "111100111001111", "111100111101111", "111001010010010", "111101111101111", "111101111001111",
+    ];
+
+    function drawNumber(n, cx, y, col) {
+      const str = String(n), px = 3, cw = 3 * px, gap = px;
+      const x0 = Math.round(cx - (str.length * cw + (str.length - 1) * gap) / 2);
+      for (const pass of [0, 1]) {
+        [...str].forEach((ch, i) => {
+          const bits = DIGITS[+ch] || DIGITS[0];
+          for (let k = 0; k < 15; k++) {
+            if (bits[k] !== "1") continue;
+            const x = x0 + i * (cw + gap) + (k % 3) * px, yy = y + Math.floor(k / 3) * px;
+            if (pass === 0) rect(lctx, x - 1, yy - 1, px + 2, px + 2, "#0d2422");
+            else rect(lctx, x, yy, px, px, col);
+          }
+        });
+      }
+    }
+
+    // ---- Bats: round rubber head on a wooden blade, handle towards the player's edge ----
+    // The head's front face sits exactly on the paddle hitbox's inner edge.
+    function drawBat(player) {
+      const c = player === 1 ? COL.p1 : COL.p2;
+      const h = Math.round(PADDLE_H * S), w = 12, hl = 9;
+      const top = Math.round(TY + paddleTop(player) * S);
+      const x = player === 1
+        ? Math.round(TX + (paddleX(1) + PADDLE_W) * S) - w
+        : Math.round(TX + paddleX(2) * S);
+      const cy = top + Math.round(h / 2);
+      const hx = player === 1 ? x - hl + 1 : x + w - 1;
+
+      ellipse(lctx, x + 2, top + 2, w, h, COL.shadow);
+      rect(lctx, hx + 2, cy, hl, 3, COL.shadow);
+
+      rect(lctx, hx, cy - 2, hl, 4, COL.handle);
+      rect(lctx, hx, cy + 1, hl, 1, COL.woodDark);
+      rect(lctx, player === 1 ? hx : hx + hl - 1, cy - 2, 1, 4, COL.woodDark);
+
+      ellipse(lctx, x, top, w, h, COL.wood);
+      ellipse(lctx, x + 1, top + 1, w - 2, h - 2, c.shade);
+      ellipse(lctx, x + 1, top + 1, w - 3, h - 3, c.main);
+      rect(lctx, x + 3, top + 6, 1, 7, c.hi);
+      rect(lctx, x + 4, top + 4, 2, 1, c.hi);
+    }
+
+    // ---- Fake ball height (drawing only; ball.x / ball.y are never touched) ----
+    // After each hit the ball arcs up, bounces once ~3/4 of the way to the receiver,
+    // then arcs again towards their bat. Height is a function of ball.x along that path.
+    const ARC1 = 9, ARC2 = 6;   // peak heights in low-res pixels
+    const arc = { dir: 0, x0: 0, xb: 0, xr: 0, stage: 1, hStart: 0, h: 0 };
+    const puffs = [];
+    let squashUntil = 0;
+
+    function ballHeight(now) {
+      const dir = phase === "play" ? Math.sign(ball.vx) : 0;
+      if (dir === 0) { arc.dir = 0; arc.h = 0; return 0; }
+      if (dir !== arc.dir) {
+        // New flight: either the serve (from where the ball sits) or a bat hit (from its face).
+        arc.x0 = arc.dir === 0 ? ball.x : dir > 0 ? paddleX(1) + PADDLE_W : paddleX(2) - BALL;
+        arc.xr = dir > 0 ? paddleX(2) - BALL : paddleX(1) + PADDLE_W;
+        arc.xb = arc.x0 + 0.75 * (arc.xr - arc.x0);
+        arc.hStart = arc.h;
+        arc.stage = 1;
+        arc.dir = dir;
+      }
+      if (arc.stage === 1) {
+        const p = Math.max(0, (ball.x - arc.x0) / (arc.xb - arc.x0));
+        if (p < 1) return (arc.h = (1 - p) * arc.hStart + ARC1 * 4 * p * (1 - p));
+        arc.stage = 2;
+        bounceFx(now);
+      }
+      const q = (ball.x - arc.xb) / ((arc.xr - arc.xb) / 0.65); // still ~90% high at the bat
+      return (arc.h = q > 0 && q < 1 ? ARC2 * 4 * q * (1 - q) : 0);
+    }
+
+    function bounceFx(now) {
+      squashUntil = now + 50; // ~3 frames
+      const cx = TX + (ball.x + BALL / 2) * S, cy = TY + (ball.y + BALL / 2) * S;
+      for (let i = 0; i < 7; i++) {
+        const a = (i / 7) * Math.PI * 2 + Math.random() * 0.5, sp = 18 + Math.random() * 18;
+        puffs.push({ x: cx, y: cy, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp * 0.7, life: 0.3, max: 0.3 });
+      }
+      tok();
+    }
+
+    // Short wooden "tok" for the table bounce (Web Audio, no files).
+    function tok() {
+      if (!audio) return;
+      const t = audio.currentTime;
+      const osc = audio.createOscillator();
+      const gain = audio.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(1050, t);
+      osc.frequency.exponentialRampToValueAtTime(420, t + 0.04);
+      gain.gain.setValueAtTime(0.0001, t);
+      gain.gain.exponentialRampToValueAtTime(0.18, t + 0.003);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.06);
+      osc.connect(gain).connect(audio.destination);
+      osc.start(t);
+      osc.stop(t + 0.08);
+    }
+
+    function drawBall(h, now) {
+      const lift = Math.min(1, h / ARC1);
+      const cx = TX + (ball.x + BALL / 2) * S, cy = TY + (ball.y + BALL / 2) * S;
+
+      // Shadow: further away, smaller and fainter the higher the ball is.
+      const off = 1 + h * 0.55, sd = Math.max(3, Math.round(5 - lift * 2));
+      lctx.globalAlpha = 1 - lift * 0.55;
+      ellipse(lctx, Math.round(cx + off - sd / 2), Math.round(cy + off - sd / 2), sd, Math.max(2, sd - 1), COL.shadow);
+      lctx.globalAlpha = 1;
+
+      // Ball: bigger when high, squashed for a moment at the bounce.
+      let bw = Math.round(5 + lift * 2), bh = bw;
+      if (now < squashUntil) { bw = 7; bh = 3; }
+      const bx = Math.round(cx - bw / 2), byy = Math.round(cy - bh / 2);
+      ellipse(lctx, bx, byy, bw, bh, COL.ballShade);
+      ellipse(lctx, bx, byy, bw - 1, bh - 1, COL.ball);
+      rect(lctx, bx + 1, byy + (bh > 3 ? 1 : 0), 1, 1, "#ffffff"); // 1px highlight
+    }
+
+    function drawPuffs(dt) {
+      for (let i = puffs.length - 1; i >= 0; i--) {
+        const p = puffs[i];
+        p.life -= dt;
+        if (p.life <= 0) { puffs.splice(i, 1); continue; }
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+        lctx.globalAlpha = p.life / p.max;
+        rect(lctx, Math.round(p.x), Math.round(p.y), 1, 1, "#ffffff");
+      }
+      lctx.globalAlpha = 1;
+    }
+
+    // ---- Scale the low-res scene up to fill the screen, pixel-crisp ----
+    function fitCanvas() {
+      const dpr = window.devicePixelRatio || 1;
+      const css = Math.max(0.5, Math.min((window.innerWidth - 40) / LW, (window.innerHeight - 40) / LH));
+      const k = Math.max(1, Math.round(css * dpr)); // backing store: whole multiple of the scene
+      canvas.width = LW * k;
+      canvas.height = LH * k;
+      canvas.style.width = `${Math.floor(LW * css)}px`;
+      canvas.style.height = `${Math.floor(LH * css)}px`;
+    }
+    window.addEventListener("resize", fitCanvas);
+    fitCanvas();
+
+    let lastDraw = performance.now();
+
+    function draw() {
+      const now = performance.now();
+      const dt = Math.min(0.05, (now - lastDraw) / 1000);
+      lastDraw = now;
+
+      lctx.drawImage(bg, 0, 0);
+      drawNumber(score[1], TX + TW / 4, TY + 8, COL.p1.main);
+      drawNumber(score[2], TX + (TW * 3) / 4, TY + 8, COL.p2.main);
+      drawBat(1);
+      drawBat(2);
+
+      if (phase === "serve" || phase === "play") {
+        const h = ballHeight(now);
+        // Blink the ball while waiting to serve.
+        if (phase === "play" || Math.floor(serveTimer * 6) % 2 === 0) drawBall(h, now);
+      }
+      drawPuffs(dt);
+
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(low, 0, 0, canvas.width, canvas.height);
+
       if (phase === "paused") {
+        // Text is drawn at full resolution so Press Start 2P stays sharp.
+        const k = canvas.width / LW;
         const missing = [1, 2].filter((p) => !joined[p]);
-        ctx.fillStyle = "#000";
-        ctx.fillRect(W / 2 - 300, H / 2 - 50, 600, 100);
-        ctx.fillStyle = "#fff";
-        centreText(`PLAYER ${missing.join(" & ")} LEFT`, H / 2 - 8, 18);
-        centreText(`REJOIN ROOM ${roomCode}`, H / 2 + 26, 14);
+        ctx.fillStyle = "rgba(20, 14, 20, 0.88)";
+        ctx.fillRect(canvas.width / 2 - 130 * k, canvas.height / 2 - 26 * k, 260 * k, 52 * k);
+        ctx.fillStyle = COL.line;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.font = `${Math.round(8 * k)}px "Press Start 2P", monospace`;
+        ctx.fillText(`PLAYER ${missing.join(" & ")} LEFT`, canvas.width / 2, canvas.height / 2 - 8 * k);
+        ctx.font = `${Math.round(6 * k)}px "Press Start 2P", monospace`;
+        ctx.fillText(`REJOIN ROOM ${roomCode}`, canvas.width / 2, canvas.height / 2 + 10 * k);
       }
     }
 
