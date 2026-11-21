@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Phone Pong</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      height: 100%;
+      background: #000;
+      color: #fff;
+      font-family: "Press Start 2P", monospace;
+      overflow: hidden;
+    }
+
+    .screen {
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 3rem;
+      padding: 1rem;
+      text-align: center;
+    }
+
+    .hidden { display: none; }
+
+    h1 {
+      font-size: clamp(1.8rem, 8vw, 4.5rem);
+      letter-spacing: 0.15em;
+      line-height: 1.3;
+      text-shadow: 4px 4px 0 #444;
+    }
+
+    .subtitle {
+      font-size: clamp(0.5rem, 2vw, 0.8rem);
+      color: #aaa;
+      line-height: 2;
+    }
+
+    .btn {
+      font-family: inherit;
+      font-size: clamp(0.9rem, 3vw, 1.3rem);
+      color: #fff;
+      background: #000;
+      border: 4px solid #fff;
+      padding: 1rem 2rem;
+      cursor: pointer;
+      animation: blink 1s steps(1) infinite;
+    }
+
+    .btn:hover, .btn:focus-visible {
+      background: #fff;
+      color: #000;
+      animation: none;
+      outline: none;
+    }
+
+    @keyframes blink { 50% { opacity: 0.3; } }
+
+    #game {
+      display: block;
+      max-width: 100%;
+      max-height: 100%;
+      border: 4px solid #fff;
+      image-rendering: pixelated;
+    }
+
+    /* Faint CRT scanlines for retro feel */
+    body::after {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background: repeating-linear-gradient(
+        to bottom, rgba(255,255,255,0.03) 0 2px, transparent 2px 4px
+      );
+    }
+  </style>
+</head>
+<body>
+  <main id="home" class="screen">
+    <h1>PHONE<br>PONG</h1>
+    <button id="start-btn" class="btn">START GAME</button>
+    <p class="subtitle">TILT YOUR PHONE TO MOVE<br>KCL FIRSTYEARHACK 2026</p>
+  </main>
+
+  <section id="game-screen" class="screen hidden">
+    <canvas id="game" width="800" height="500"></canvas>
+  </section>
+
+  <script>
+    const home = document.getElementById("home");
+    const gameScreen = document.getElementById("game-screen");
+    const canvas = document.getElementById("game");
+    const ctx = canvas.getContext("2d");
+
+    document.getElementById("start-btn").addEventListener("click", () => {
+      home.classList.add("hidden");
+      gameScreen.classList.remove("hidden");
+      drawCourt();
+    });
+
+    // Placeholder: draws an empty court. Game loop + tilt controls come later.
+    function drawCourt() {
+      ctx.fillStyle = "#000";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // Dashed centre line
+      ctx.fillStyle = "#fff";
+      for (let y = 10; y < canvas.height; y += 30) {
+        ctx.fillRect(canvas.width / 2 - 3, y, 6, 15);
+      }
+
+      // Paddles and ball
+      ctx.fillRect(20, canvas.height / 2 - 40, 12, 80);
+      ctx.fillRect(canvas.width - 32, canvas.height / 2 - 40, 12, 80);
+      ctx.fillRect(canvas.width / 2 - 8, canvas.height / 2 - 8, 16, 16);
+
+      ctx.font = '16px "Press Start 2P", monospace';
+      ctx.textAlign = "center";
+      ctx.fillText("0", canvas.width / 4, 50);
+      ctx.fillText("0", (canvas.width * 3) / 4, 50);
+    }
+  </script>
+</body>
+</html>
