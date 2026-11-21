@@ -657,6 +657,12 @@
 
     function hitsPaddle(player) {
       const x = paddleX(player), top = paddleTop(player);
+      // Front bats (P3/P4) stand mid-table: once the ball's centre is past theirs, they
+      // can't scoop it back from behind; it's the back bat's ball now.
+      if (player >= 3) {
+        const ballMid = ball.x + BALL / 2, batMid = x + PADDLE_W / 2;
+        if (TEAM_OF[player] === "red" ? ballMid < batMid : ballMid > batMid) return false;
+      }
       return ball.x <= x + PADDLE_W && ball.x + BALL >= x &&
              ball.y + BALL >= top && ball.y <= top + PADDLE_H;
     }
