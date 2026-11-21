@@ -6,12 +6,6 @@ Built for the **Retro Remix** track at **KCL FirstYearHack 2026**.
 
 🎬 **Demo video:** _[link coming soon]_
 
-![Game screen](docs/screenshot-game.png)
-_Screenshot placeholder: game screen_
-
-![Phone controller](docs/screenshot-phone.png)
-_Screenshot placeholder: phone controller_
-
 ## Why we built it
 
 Pong was one of the first video games, played by twisting a knob on an arcade
@@ -22,7 +16,8 @@ gamepads: one screen, a QR code, and up to four phones in the room.
 ## How to play
 
 1. **Open the game** on a big screen (laptop, monitor or projector) and press START.
-2. **Scan the QR code** with your phone (or type in the 4-letter room code link).
+2. **Join on your phone:** scan the QR code, or type the join link shown under it
+   into your phone's browser (it ends in your 4-letter room code, e.g. `/play?room=ABCD`).
 3. **Tap ENABLE MOTION** on your phone and allow motion access.
 4. **Tilt your phone** up and down to move your paddle. First team to 7 wins.
 
@@ -177,10 +172,6 @@ phone-pong/
 - [Press Start 2P](https://fonts.google.com/specimen/Press+Start+2P) font by CodeMan38 (Google Fonts)
 - [QRCode.js](https://github.com/davidshimjs/qrcodejs) for the QR code
 - [Socket.IO](https://socket.io/) and [Flask-SocketIO](https://flask-socketio.readthedocs.io/) for real-time messaging
-
-## License
-
-MIT License.
 
 ## Team
 
