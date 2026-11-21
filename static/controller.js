@@ -23,7 +23,7 @@
   const DEAD_ZONE = 2;         // degrees around the centre that count as "centre"
   const TILT_SMOOTHING = 0.2;  // low-pass filter weight for each new reading (0..1)
   const ROOM_FULL_RETRY_MS = 3000;
-  const SMASH_THRESHOLD = 18;  // m/s² of movement (gravity removed) that counts as a shake
+  const SMASH_THRESHOLD = 14;  // m/s² of movement (gravity removed) that counts as a shake
   const SMASH_COOLDOWN_MS = 1000;
   const LATENCY_INTERVAL_MS = 2000;
 

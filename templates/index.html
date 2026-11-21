@@ -349,12 +349,12 @@
     const SERVE_DELAY = 1;     // seconds before each serve
     const KEY_SPEED = 1.4;     // paddle travel per second (0..1 range) with keyboard
     const PADDLE_LERP = 0.25;  // fraction of the gap to the target closed each frame
-    const SMASH_WINDOW = 0.4;  // seconds after a phone shake in which a hit becomes a smash
+    const SMASH_WINDOW = 0.6;  // seconds after a phone shake in which a hit becomes a smash
     const SMASH_BOOST = 1.8;   // smash shot speed multiplier (that one shot only)
     // Spin: -1..1 on the ball. It bends the ball sideways (y) and fades over time.
     const SPIN_FROM_BAT = 1 / 1400; // spin per px/s of bat vertical speed at contact
     const SPIN_FROM_TWIST = 0.7;    // spin from a full phone twist (-1..1)
-    const SPIN_DEAD_ZONE = 0.15;    // gentle hits below this have no spin
+    const SPIN_DEAD_ZONE = 0.25;    // gentle hits below this have no spin
     const SPIN_CURVE = 520;         // sideways acceleration at full spin, px/s^2
     const SPIN_DECAY = 0.9;         // spin fades by e^(-SPIN_DECAY * seconds)
     const CODE_LETTERS = "ABCDEFGHJKLMNPQRSTUVWXYZ"; // no I/O, easy to read aloud
