@@ -16,6 +16,7 @@ import threading
 
 from flask import Flask, render_template, request
 from flask_socketio import SocketIO, join_room
+from werkzeug.serving import WSGIRequestHandler
 
 app = Flask(__name__)
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "dev-secret-change-me")
@@ -169,7 +170,17 @@ def handle_disconnect(*_args):
         socketio.emit("player_left", {"player": number}, to=host)
 
 
+class UnbufferedRequestHandler(WSGIRequestHandler):
+    # Werkzeug reads requests through a buffered stream. Behind a proxy such as
+    # ngrok the client's first WebSocket frame can arrive in the same packet as
+    # the upgrade request; the buffer swallows it, simple-websocket (which reads
+    # the raw socket) never sees the probe, and the upgrade fails. Reading
+    # unbuffered leaves those bytes on the socket.
+    rbufsize = 0
+
+
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8000))
     # host 0.0.0.0 so phones on the same Wi-Fi can reach the server.
-    socketio.run(app, host="0.0.0.0", port=port, debug=True, allow_unsafe_werkzeug=True)
+    socketio.run(app, host="0.0.0.0", port=port, debug=True, allow_unsafe_werkzeug=True,
+                 request_handler=UnbufferedRequestHandler)
