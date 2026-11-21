@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>Phone Pong</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16'/%3E%3Crect x='1' y='4' width='2' height='8' fill='%23fff'/%3E%3Crect x='13' y='4' width='2' height='8' fill='%23fff'/%3E%3Crect x='7' y='7' width='2' height='2' fill='%23fff'/%3E%3C/svg%3E">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
@@ -24,12 +25,12 @@
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      gap: 3rem;
+      gap: 2.5rem;
       padding: 1rem;
       text-align: center;
     }
 
-    .hidden { display: none; }
+    .hidden { display: none !important; }
 
     h1 {
       font-size: clamp(1.8rem, 8vw, 4.5rem);
@@ -38,8 +39,8 @@
       text-shadow: 4px 4px 0 #444;
     }
 
-    .subtitle {
-      font-size: clamp(0.5rem, 2vw, 0.8rem);
+    .subtitle, .hint {
+      font-size: clamp(0.5rem, 1.6vw, 0.75rem);
       color: #aaa;
       line-height: 2;
     }
@@ -64,12 +65,83 @@
 
     @keyframes blink { 50% { opacity: 0.3; } }
 
+    /* ---- Lobby ---- */
+    .lobby-main {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 3rem;
+      flex-wrap: wrap;
+    }
+
+    .label { font-size: clamp(0.6rem, 1.6vw, 0.9rem); color: #aaa; margin-bottom: 1rem; }
+
+    #room-code {
+      font-size: clamp(3rem, 12vw, 7rem);
+      letter-spacing: 0.15em;
+      text-shadow: 6px 6px 0 #444;
+    }
+
+    #join-url { font-size: clamp(0.45rem, 1.2vw, 0.65rem); color: #aaa; margin-top: 1rem; word-break: break-all; }
+
+    #qr {
+      background: #fff;
+      padding: 12px;
+      width: calc(200px + 24px);
+      height: calc(200px + 24px);
+    }
+
+    #qr img, #qr canvas { display: block; image-rendering: pixelated; }
+
+    .slots { display: flex; gap: 2rem; flex-wrap: wrap; justify-content: center; }
+
+    .slot {
+      border: 4px dashed #444;
+      color: #444;
+      padding: 1rem 1.5rem;
+      font-size: clamp(0.7rem, 2vw, 1rem);
+      line-height: 2;
+      min-width: 14rem;
+      transition: none;
+    }
+
+    .slot .state { display: block; font-size: 0.6em; }
+
+    .slot.on {
+      border-style: solid;
+      border-color: #fff;
+      color: #000;
+      background: #fff;
+    }
+
+    .warn { color: #fff; font-size: clamp(0.45rem, 1.2vw, 0.6rem); line-height: 2; border: 2px solid #fff; padding: 0.75rem; max-width: 40rem; }
+
+    /* ---- Game ---- */
+    #game-screen { position: relative; }
+
     #game {
       display: block;
-      max-width: 100%;
-      max-height: 100%;
+      width: min(96vw, calc(96vh * 1.6));
+      height: auto;
       border: 4px solid #fff;
       image-rendering: pixelated;
+    }
+
+    #overlay {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 2.5rem;
+      background: rgba(0, 0, 0, 0.85);
+    }
+
+    #winner {
+      font-size: clamp(1.4rem, 6vw, 3.5rem);
+      line-height: 1.5;
+      text-shadow: 4px 4px 0 #444;
     }
 
     /* Faint CRT scanlines for retro feel */
@@ -91,43 +163,380 @@
     <p class="subtitle">TILT YOUR PHONE TO MOVE<br>KCL FIRSTYEARHACK 2026</p>
   </main>
 
-  <section id="game-screen" class="screen hidden">
-    <canvas id="game" width="800" height="500"></canvas>
+  <section id="lobby" class="screen hidden">
+    <div class="lobby-main">
+      <div>
+        <p class="label">ROOM CODE</p>
+        <p id="room-code">----</p>
+        <p id="join-url"></p>
+      </div>
+      <div>
+        <p class="label">SCAN TO JOIN</p>
+        <div id="qr"></div>
+      </div>
+    </div>
+
+    <div class="slots">
+      <div id="slot-1" class="slot">PLAYER 1<span class="state">WAITING...</span></div>
+      <div id="slot-2" class="slot">PLAYER 2<span class="state">WAITING...</span></div>
+    </div>
+
+    <p id="localhost-warn" class="warn hidden">
+      PHONES CAN'T OPEN "LOCALHOST".<br>OPEN THIS PAGE VIA YOUR COMPUTER'S IP ADDRESS
+      SO THE QR CODE WORKS.
+    </p>
+    <p class="hint">NO PHONES? PRESS SPACE TO PLAY WITH KEYBOARD<br>P1: W / S &nbsp; P2: &uarr; / &darr;</p>
   </section>
 
-  <script>
-    const home = document.getElementById("home");
-    const gameScreen = document.getElementById("game-screen");
-    const canvas = document.getElementById("game");
-    const ctx = canvas.getContext("2d");
+  <section id="game-screen" class="screen hidden">
+    <canvas id="game" width="800" height="500"></canvas>
+    <div id="overlay" class="hidden">
+      <p id="winner">PLAYER 1 WINS</p>
+      <button id="again-btn" class="btn">PLAY AGAIN</button>
+    </div>
+  </section>
 
-    document.getElementById("start-btn").addEventListener("click", () => {
-      home.classList.add("hidden");
-      gameScreen.classList.remove("hidden");
-      drawCourt();
+  <!-- Socket.IO JS client v4 matches Flask-SocketIO 5.x -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <script>
+  (() => {
+    // ---- Constants (canvas units) ----
+    const W = 800, H = 500;
+    const PADDLE_W = 12, PADDLE_H = 80, PADDLE_MARGIN = 24;
+    const BALL = 12;
+    const START_SPEED = 380;   // px per second
+    const SPEED_UP = 1.06;     // multiplier on every paddle hit
+    const MAX_SPEED = 1100;
+    const MAX_BOUNCE = Math.PI / 3; // steepest return angle (paddle edge)
+    const WIN_SCORE = 7;
+    const SERVE_DELAY = 1;     // seconds before each serve
+    const KEY_SPEED = 1.4;     // paddle travel per second (0..1 range) with keyboard
+    const CODE_LETTERS = "ABCDEFGHJKLMNPQRSTUVWXYZ"; // no I/O, easy to read aloud
+
+    const $ = (id) => document.getElementById(id);
+    const screens = { home: $("home"), lobby: $("lobby"), game: $("game-screen") };
+    const canvas = $("game");
+    const ctx = canvas.getContext("2d");
+    const overlay = $("overlay");
+
+    // ---- State ----
+    let roomCode = null;
+    let phase = "home";        // home | lobby | serve | play | paused | over
+    let keyboardMode = false;  // started with SPACE, so no phones are required
+    const joined = { 1: false, 2: false };
+    const paddles = { 1: { y: 0.5, target: 0.5 }, 2: { y: 0.5, target: 0.5 } };
+    const score = { 1: 0, 2: 0 };
+    const ball = { x: 0, y: 0, vx: 0, vy: 0, speed: START_SPEED };
+    let serveTimer = 0, serveDir = 1;
+    const keys = new Set();
+
+    function show(name) {
+      for (const [key, el] of Object.entries(screens)) el.classList.toggle("hidden", key !== name);
+    }
+
+    // ---- Sound (Web Audio beeps) ----
+    let audio = null;
+    function initAudio() {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return;
+      if (!audio) audio = new AC();
+      if (audio.state === "suspended") audio.resume();
+    }
+
+    function beep(freq, dur = 0.07, delay = 0, type = "square", vol = 0.08) {
+      if (!audio) return;
+      const t = audio.currentTime + delay;
+      const osc = audio.createOscillator();
+      const gain = audio.createGain();
+      osc.type = type;
+      osc.frequency.setValueAtTime(freq, t);
+      gain.gain.setValueAtTime(vol, t);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      osc.connect(gain).connect(audio.destination);
+      osc.start(t);
+      osc.stop(t + dur + 0.02);
+    }
+
+    const sfx = {
+      paddle: () => beep(480),
+      wall: () => beep(240, 0.05),
+      point: () => beep(120, 0.35, 0, "square", 0.1),
+      join: () => { beep(660, 0.08); beep(990, 0.12, 0.09); },
+      win: () => [523, 659, 784, 1047].forEach((f, i) => beep(f, 0.18, i * 0.15)),
+    };
+
+    // ---- Networking ----
+    const socket = io();
+
+    socket.on("connect", () => {
+      // Re-register after a reconnect (e.g. server restart) so phones can find us.
+      if (roomCode) socket.emit("create_room", { room: roomCode });
     });
 
-    // Placeholder: draws an empty court. Game loop + tilt controls come later.
-    function drawCourt() {
-      ctx.fillStyle = "#000";
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    socket.on("player_joined", ({ player }) => {
+      if (player !== 1 && player !== 2) return;
+      if (!joined[player]) sfx.join();
+      setJoined(player, true);
+      if (phase === "lobby" && joined[1] && joined[2]) startMatch();
+      else if (phase === "paused" && joined[1] && joined[2]) serve(serveDir);
+    });
 
-      // Dashed centre line
-      ctx.fillStyle = "#fff";
-      for (let y = 10; y < canvas.height; y += 30) {
-        ctx.fillRect(canvas.width / 2 - 3, y, 6, 15);
+    socket.on("player_left", ({ player }) => {
+      if (player !== 1 && player !== 2) return;
+      setJoined(player, false);
+      if (!keyboardMode && (phase === "serve" || phase === "play")) phase = "paused";
+    });
+
+    socket.on("paddle", ({ player, y }) => {
+      const p = paddles[player];
+      if (!p || typeof y !== "number") return;
+      // A held key wins over the phone, so keyboard testing works alongside phones.
+      if (keyHeld(player)) return;
+      p.target = Math.min(1, Math.max(0, y));
+    });
+
+    function emitScore() {
+      socket.emit("score", { room: roomCode, p1: score[1], p2: score[2] });
+    }
+
+    function setJoined(player, on) {
+      joined[player] = on;
+      const slot = $(`slot-${player}`);
+      slot.classList.toggle("on", on);
+      slot.querySelector(".state").textContent = on ? "READY!" : "WAITING...";
+    }
+
+    // ---- Lobby ----
+    function makeCode() {
+      let code = "";
+      for (let i = 0; i < 4; i++) code += CODE_LETTERS[Math.floor(Math.random() * CODE_LETTERS.length)];
+      return code;
+    }
+
+    function openLobby() {
+      initAudio();
+      roomCode = makeCode();
+      const url = `${window.location.origin}/play?room=${roomCode}`;
+      $("room-code").textContent = roomCode;
+      $("join-url").textContent = url;
+
+      const qrEl = $("qr");
+      qrEl.innerHTML = "";
+      if (window.QRCode) {
+        new QRCode(qrEl, {
+          text: url, width: 200, height: 200,
+          colorDark: "#000000", colorLight: "#ffffff",
+          correctLevel: QRCode.CorrectLevel.M,
+        });
+      } else {
+        qrEl.classList.add("hidden"); // CDN unavailable: the URL text still works
       }
 
-      // Paddles and ball
-      ctx.fillRect(20, canvas.height / 2 - 40, 12, 80);
-      ctx.fillRect(canvas.width - 32, canvas.height / 2 - 40, 12, 80);
-      ctx.fillRect(canvas.width / 2 - 8, canvas.height / 2 - 8, 16, 16);
+      const local = ["localhost", "127.0.0.1", "::1", "[::1]"].includes(window.location.hostname);
+      $("localhost-warn").classList.toggle("hidden", !local);
 
-      ctx.font = '16px "Press Start 2P", monospace';
-      ctx.textAlign = "center";
-      ctx.fillText("0", canvas.width / 4, 50);
-      ctx.fillText("0", (canvas.width * 3) / 4, 50);
+      socket.emit("create_room", { room: roomCode });
+      phase = "lobby";
+      show("lobby");
     }
+
+    // ---- Game flow ----
+    function startMatch() {
+      score[1] = 0; score[2] = 0;
+      emitScore();
+      overlay.classList.add("hidden");
+      show("game");
+      serve(Math.random() < 0.5 ? -1 : 1);
+    }
+
+    function serve(dir) {
+      serveDir = dir;
+      ball.x = (W - BALL) / 2;
+      ball.y = (H - BALL) / 2;
+      ball.vx = ball.vy = 0;
+      ball.speed = START_SPEED;
+      serveTimer = SERVE_DELAY;
+      phase = "serve";
+    }
+
+    function launch() {
+      const angle = (Math.random() * 2 - 1) * (Math.PI / 6);
+      ball.vx = serveDir * ball.speed * Math.cos(angle);
+      ball.vy = ball.speed * Math.sin(angle);
+      phase = "play";
+    }
+
+    function pointTo(player) {
+      score[player]++;
+      emitScore();
+      sfx.point();
+      if (score[player] >= WIN_SCORE) {
+        phase = "over";
+        $("winner").textContent = `PLAYER ${player} WINS`;
+        overlay.classList.remove("hidden");
+        $("again-btn").focus();
+        sfx.win();
+      } else {
+        // Serve towards the player who just conceded.
+        serve(player === 1 ? 1 : -1);
+      }
+    }
+
+    function playAgain() {
+      initAudio();
+      if (keyboardMode || (joined[1] && joined[2])) {
+        startMatch();
+      } else {
+        overlay.classList.add("hidden");
+        phase = "lobby";
+        show("lobby");
+      }
+    }
+
+    // ---- Physics ----
+    const paddleX = (player) => (player === 1 ? PADDLE_MARGIN : W - PADDLE_MARGIN - PADDLE_W);
+    const paddleTop = (player) => paddles[player].y * (H - PADDLE_H);
+
+    function hitsPaddle(player) {
+      const x = paddleX(player), top = paddleTop(player);
+      return ball.x <= x + PADDLE_W && ball.x + BALL >= x &&
+             ball.y + BALL >= top && ball.y <= top + PADDLE_H;
+    }
+
+    function bounceOff(player) {
+      const top = paddleTop(player);
+      // -1 (top edge) .. 1 (bottom edge): where on the paddle the ball struck.
+      let rel = (ball.y + BALL / 2 - (top + PADDLE_H / 2)) / (PADDLE_H / 2);
+      rel = Math.max(-1, Math.min(1, rel));
+      const angle = rel * MAX_BOUNCE;
+      ball.speed = Math.min(MAX_SPEED, ball.speed * SPEED_UP);
+      const dir = player === 1 ? 1 : -1;
+      ball.vx = dir * ball.speed * Math.cos(angle);
+      ball.vy = ball.speed * Math.sin(angle);
+      ball.x = player === 1 ? paddleX(1) + PADDLE_W : paddleX(2) - BALL;
+      sfx.paddle();
+    }
+
+    function step(h) {
+      ball.x += ball.vx * h;
+      ball.y += ball.vy * h;
+
+      if (ball.y <= 0) { ball.y = 0; ball.vy = Math.abs(ball.vy); sfx.wall(); }
+      else if (ball.y + BALL >= H) { ball.y = H - BALL; ball.vy = -Math.abs(ball.vy); sfx.wall(); }
+
+      if (ball.vx < 0 && hitsPaddle(1)) bounceOff(1);
+      else if (ball.vx > 0 && hitsPaddle(2)) bounceOff(2);
+
+      if (ball.x + BALL < 0) pointTo(2);
+      else if (ball.x > W) pointTo(1);
+    }
+
+    function keyHeld(player) {
+      return player === 1 ? keys.has("w") || keys.has("s")
+                          : keys.has("ArrowUp") || keys.has("ArrowDown");
+    }
+
+    function update(dt) {
+      // Keyboard fallback
+      const dir1 = (keys.has("s") ? 1 : 0) - (keys.has("w") ? 1 : 0);
+      const dir2 = (keys.has("ArrowDown") ? 1 : 0) - (keys.has("ArrowUp") ? 1 : 0);
+      paddles[1].target = Math.min(1, Math.max(0, paddles[1].target + dir1 * KEY_SPEED * dt));
+      paddles[2].target = Math.min(1, Math.max(0, paddles[2].target + dir2 * KEY_SPEED * dt));
+
+      // Ease towards the target so ~30 Hz phone updates look smooth at 60 fps.
+      for (const p of Object.values(paddles)) p.y += (p.target - p.y) * Math.min(1, dt * 20);
+
+      if (phase === "serve") {
+        serveTimer -= dt;
+        if (serveTimer <= 0) launch();
+      } else if (phase === "play") {
+        // Small sub-steps so a fast ball can't tunnel through a paddle.
+        let remaining = dt;
+        while (remaining > 0 && phase === "play") {
+          const h = Math.min(remaining, 0.004);
+          step(h);
+          remaining -= h;
+        }
+      }
+    }
+
+    // ---- Drawing ----
+    function centreText(text, y, size) {
+      ctx.font = `${size}px "Press Start 2P", monospace`;
+      ctx.textAlign = "center";
+      ctx.fillText(text, W / 2, y);
+    }
+
+    function draw() {
+      ctx.fillStyle = "#000";
+      ctx.fillRect(0, 0, W, H);
+      ctx.fillStyle = "#fff";
+
+      for (let y = 10; y < H; y += 30) ctx.fillRect(W / 2 - 3, y, 6, 15);
+
+      ctx.font = '40px "Press Start 2P", monospace';
+      ctx.textAlign = "center";
+      ctx.fillText(score[1], W / 4, 70);
+      ctx.fillText(score[2], (W * 3) / 4, 70);
+
+      ctx.fillRect(paddleX(1), paddleTop(1), PADDLE_W, PADDLE_H);
+      ctx.fillRect(paddleX(2), paddleTop(2), PADDLE_W, PADDLE_H);
+
+      if (phase === "serve" || phase === "play") {
+        // Blink the ball while waiting to serve.
+        if (phase === "play" || Math.floor(serveTimer * 6) % 2 === 0) {
+          ctx.fillRect(ball.x, ball.y, BALL, BALL);
+        }
+      }
+
+      if (phase === "paused") {
+        const missing = [1, 2].filter((p) => !joined[p]);
+        ctx.fillStyle = "#000";
+        ctx.fillRect(W / 2 - 300, H / 2 - 50, 600, 100);
+        ctx.fillStyle = "#fff";
+        centreText(`PLAYER ${missing.join(" & ")} LEFT`, H / 2 - 8, 18);
+        centreText(`REJOIN ROOM ${roomCode}`, H / 2 + 26, 14);
+      }
+    }
+
+    let last = performance.now();
+    function frame(now) {
+      const dt = Math.min(0.05, (now - last) / 1000); // clamp after tab switches
+      last = now;
+      if (phase !== "home" && phase !== "lobby") {
+        update(dt);
+        draw();
+      }
+      requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
+
+    // ---- Input ----
+    const GAME_KEYS = ["w", "s", "ArrowUp", "ArrowDown"];
+
+    window.addEventListener("keydown", (e) => {
+      const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+      if (GAME_KEYS.includes(key)) {
+        keys.add(key);
+        e.preventDefault();
+      } else if (key === " " && phase === "lobby") {
+        keyboardMode = true;
+        initAudio();
+        startMatch();
+        e.preventDefault();
+      }
+    });
+
+    window.addEventListener("keyup", (e) => {
+      keys.delete(e.key.length === 1 ? e.key.toLowerCase() : e.key);
+    });
+
+    window.addEventListener("blur", () => keys.clear());
+
+    $("start-btn").addEventListener("click", openLobby);
+    $("again-btn").addEventListener("click", playAgain);
+  })();
   </script>
 </body>
 </html>
