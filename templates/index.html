@@ -94,6 +94,21 @@
     }
 
     .label { font-size: clamp(0.6rem, 1.6vw, 0.9rem); color: var(--muted); margin-bottom: 1rem; }
+    .label.blink { color: var(--gold); animation: blink 1s steps(1) infinite; }
+
+    /* Attract mode: a demo rally plays on the table behind the lobby, like an arcade cabinet. */
+    #lobby { position: relative; }
+    #lobby > :not(#attract) { position: relative; z-index: 1; }
+    #attract {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      image-rendering: pixelated;
+      opacity: 0.45;
+      pointer-events: none;
+    }
 
     #room-code {
       font-size: clamp(3rem, 12vw, 7rem);
@@ -223,6 +238,7 @@
   </main>
 
   <section id="lobby" class="screen hidden">
+    <canvas id="attract" width="384" height="272"></canvas>
     <div class="lobby-main">
       <div>
         <p class="label">ROOM CODE</p>
@@ -230,7 +246,7 @@
         <p id="join-url"></p>
       </div>
       <div>
-        <p class="label">SCAN TO JOIN</p>
+        <p class="label blink">SCAN TO PLAY</p>
         <div id="qr"></div>
       </div>
     </div>
@@ -440,6 +456,7 @@
 
       socket.emit("create_room", { room: roomCode });
       phase = "lobby";
+      startAttract();
       show("lobby");
     }
 
@@ -500,6 +517,7 @@
       } else {
         overlay.classList.add("hidden");
         phase = "lobby";
+        startAttract();
         show("lobby");
       }
     }
@@ -554,6 +572,44 @@
 
       if (ball.x + BALL < 0) pointTo(2);
       else if (ball.x > W) pointTo(1);
+    }
+
+    // ---- Attract mode: computer-controlled demo rally shown behind the lobby ----
+    const DEMO_SPEED = 320;
+    let demoAim = 0; // offset of the bat from the ball, so returns go at different angles
+
+    function demoLaunch(dir) {
+      const angle = (Math.random() * 2 - 1) * 0.6;
+      ball.vx = dir * DEMO_SPEED * Math.cos(angle);
+      ball.vy = DEMO_SPEED * Math.sin(angle);
+      demoAim = (Math.random() * 2 - 1) * 0.08;
+    }
+
+    function startAttract() {
+      ball.x = (W - BALL) / 2;
+      ball.y = (H - BALL) / 2;
+      ball.smash = false;
+      demoLaunch(Math.random() < 0.5 ? -1 : 1);
+    }
+
+    function demoUpdate(dt) {
+      const clamp01 = (v) => Math.min(1, Math.max(0, v));
+      const ballY = (ball.y + BALL / 2 - PADDLE_H / 2) / (H - PADDLE_H);
+      for (const p of [1, 2]) {
+        // The bat the ball is heading for chases it; the other drifts back towards the middle.
+        const coming = (p === 1) === (ball.vx < 0);
+        paddles[p].target = clamp01(coming ? ballY + demoAim : 0.5 + (ballY - 0.5) * 0.3);
+      }
+      const ease = 1 - Math.pow(1 - PADDLE_LERP, dt * 60);
+      for (const p of Object.values(paddles)) p.y += (p.target - p.y) * ease;
+
+      ball.x += ball.vx * dt;
+      ball.y += ball.vy * dt;
+      if (ball.y <= 0) { ball.y = 0; ball.vy = Math.abs(ball.vy); }
+      else if (ball.y + BALL >= H) { ball.y = H - BALL; ball.vy = -Math.abs(ball.vy); }
+      // The demo bats never miss: bounce whenever the ball reaches a bat's face.
+      if (ball.vx < 0 && ball.x <= paddleX(1) + PADDLE_W) { ball.x = paddleX(1) + PADDLE_W; demoLaunch(1); }
+      else if (ball.vx > 0 && ball.x + BALL >= paddleX(2)) { ball.x = paddleX(2) - BALL; demoLaunch(-1); }
     }
 
     function keyHeld(player) {
@@ -858,7 +914,7 @@
     let squashUntil = 0;
 
     function ballHeight(now) {
-      const dir = phase === "play" ? Math.sign(ball.vx) : 0;
+      const dir = phase === "play" || phase === "lobby" ? Math.sign(ball.vx) : 0;
       if (dir === 0) { arc.dir = 0; arc.h = 0; return 0; }
       if (dir !== arc.dir) {
         // New flight: either the serve (from where the ball sits) or a bat hit (from its face).
@@ -891,7 +947,7 @@
 
     // Short wooden "tok" for the table bounce (Web Audio, no files).
     function tok() {
-      if (!audio) return;
+      if (!audio || phase === "lobby") return; // the attract demo stays silent
       const t = audio.currentTime;
       const osc = audio.createOscillator();
       const gain = audio.createGain();
@@ -1065,16 +1121,18 @@
       lastDraw = now;
 
       lctx.drawImage(bg, 0, 0);
-      drawNumber(score[1], TX + TW / 4, TY + 8, COL.p1.main);
-      drawNumber(score[2], TX + (TW * 3) / 4, TY + 8, COL.p2.main);
+      if (phase !== "lobby") {
+        drawNumber(score[1], TX + TW / 4, TY + 8, COL.p1.main);
+        drawNumber(score[2], TX + (TW * 3) / 4, TY + 8, COL.p2.main);
+      }
       drawBat(1);
       drawBat(2);
 
-      if (phase === "serve" || phase === "play") {
+      if (phase === "serve" || phase === "play" || phase === "lobby") {
         const h = ballHeight(now);
         // Blink the ball while waiting to serve.
         drawFlames(dt);
-        if (phase === "play" || Math.floor(serveTimer * 6) % 2 === 0) drawBall(h, now);
+        if (phase !== "serve" || Math.floor(serveTimer * 6) % 2 === 0) drawBall(h, now);
       }
       drawPuffs(dt);
 
@@ -1116,11 +1174,18 @@
       }
     }
 
+    const attractCtx = $("attract").getContext("2d");
+
     let last = performance.now();
     function frame(now) {
       const dt = Math.min(0.05, (now - last) / 1000); // clamp after tab switches
       last = now;
-      if (phase !== "home" && phase !== "lobby") {
+      if (phase === "lobby") {
+        // Attract mode: run the demo, draw the scene, copy it onto the lobby background.
+        demoUpdate(dt);
+        draw();
+        attractCtx.drawImage(low, 0, 0);
+      } else if (phase !== "home") {
         update(dt);
         draw();
       }
