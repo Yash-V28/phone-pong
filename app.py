@@ -10,10 +10,11 @@ Socket.IO contract:
   host  -> server: create_room {room}
   host  -> server: score {room, p1, p2}
   host  -> server: smash_landed {room, player}
+  host  -> server: hit {room, player, type: "hit"|"concede"}
   server -> host:  player_joined {player}, player_left {player}, paddle {player, y},
                    smash {player}
   server -> phones: score {p1, p2}
-  server -> one phone: smash_landed {}
+  server -> one phone: smash_landed {}, hit {type}
 """
 import os
 import threading
@@ -174,6 +175,14 @@ def handle_smash(data):
 @socketio.on("smash_landed")
 def handle_smash_landed(data):
     host_to_phone(data, "smash_landed")
+
+
+@socketio.on("hit")
+def handle_hit(data):
+    # "hit": this player's bat struck the ball. "concede": they just lost a point.
+    kind = data.get("type") if isinstance(data, dict) else None
+    if kind in ("hit", "concede"):
+        host_to_phone(data, "hit", {"type": kind})
 
 
 @socketio.on("score")

@@ -7,6 +7,7 @@
 //   emit  smash  {room}          (phone was shaken; 1 s cooldown)
 //   on    score  {p1, p2}
 //   on    smash_landed           (our smash hit the ball: flash the screen)
+//   on    hit    {type}          ("hit": our bat struck the ball, "concede": we lost a point)
 
 (() => {
   const SEND_INTERVAL_MS = 33; // ~30 updates per second
@@ -127,7 +128,28 @@
     scoreEl.classList.remove("hidden");
   });
 
-  socket.on("smash_landed", () => flash("#ff8a3a"));
+  const PLAYER_COLOURS = { 1: "#e04848", 2: "#3f6fe6" };
+
+  // navigator.vibrate is missing on iPhones (and some browsers), hence the screen flash too.
+  function vibrate(pattern) {
+    if (navigator.vibrate) navigator.vibrate(pattern);
+  }
+
+  socket.on("smash_landed", () => {
+    vibrate([40, 30, 80]);
+    flash("#ff8a3a");
+  });
+
+  socket.on("hit", (data) => {
+    const colour = PLAYER_COLOURS[player] || "#fff";
+    if (data && data.type === "concede") {
+      vibrate(200);
+      flash(colour);
+    } else {
+      vibrate(30);
+      flash(colour);
+    }
+  });
 
   // Stream the paddle position while we hold a player slot.
   setInterval(() => {

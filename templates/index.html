@@ -339,6 +339,11 @@
       if (player === 1 || player === 2) smashAt[player] = performance.now() / 1000;
     });
 
+    // Tell one phone to buzz/flash: "hit" when its bat strikes the ball, "concede" on losing a point.
+    function emitHit(player, type) {
+      if (roomCode) socket.emit("hit", { room: roomCode, player, type });
+    }
+
     function emitScore() {
       socket.emit("score", { room: roomCode, p1: score[1], p2: score[2] });
     }
@@ -415,6 +420,7 @@
     function pointTo(player) {
       score[player]++;
       emitScore();
+      emitHit(player === 1 ? 2 : 1, "concede");
       sfx.point();
       if (score[player] >= WIN_SCORE) {
         phase = "over";
@@ -471,6 +477,7 @@
         socket.emit("smash_landed", { room: roomCode, player });
       } else {
         sfx.paddle();
+        emitHit(player, "hit"); // a smash already buzzes the phone via smash_landed
       }
     }
 
