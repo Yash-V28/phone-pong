@@ -342,7 +342,6 @@
     const SPIN_DEAD_ZONE = 0.15;    // gentle hits below this have no spin
     const SPIN_CURVE = 520;         // sideways acceleration at full spin, px/s^2
     const SPIN_DECAY = 0.9;         // spin fades by e^(-SPIN_DECAY * seconds)
-    const SPIN_HEAVY = 0.7;         // show "SPIN!" at or above this
     const CODE_LETTERS = "ABCDEFGHJKLMNPQRSTUVWXYZ"; // no I/O, easy to read aloud
 
     // ---- Teams and modes ----
@@ -711,7 +710,7 @@
       let spin = p.vel * SPIN_FROM_BAT + p.twist * SPIN_FROM_TWIST;
       spin = Math.max(-1, Math.min(1, spin));
       ball.spin = Math.abs(spin) < SPIN_DEAD_ZONE ? 0 : spin;
-      if (!ball.smash && Math.abs(ball.spin) >= SPIN_HEAVY) spinFx(player);
+      if (!ball.smash && ball.spin) spinFx(player);
 
       if (ball.smash) {
         smashAt[player] = -Infinity; // one smash per shake
@@ -1289,7 +1288,7 @@
       popText = { player, until: now + SMASH_TEXT_MS, dur: SMASH_TEXT_MS, text: "SMASH!", cols: [COL.fire, "#ffd166"] };
     }
 
-    // Heavy spin on a hit: icy "SPIN!" over the bat (a smash's text wins if both).
+    // Spin on a hit: icy "SPIN!" over the bat (a smash's text wins if both).
     function spinFx(player) {
       const now = performance.now();
       popText = { player, until: now + 700, dur: 700, text: "SPIN!", cols: ["#7ad7ff", "#e8fbff"] };
