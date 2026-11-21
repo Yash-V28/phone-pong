@@ -81,6 +81,20 @@
 
     .btn:disabled { animation: none; opacity: 0.5; }
 
+    /* Small secondary button (RECENTRE), no blinking. */
+    .btn-small {
+      font-family: inherit;
+      font-size: 0.6rem;
+      color: #fff;
+      background: #000;
+      border: 3px solid #aaa;
+      padding: 0.6rem;
+      align-self: center;
+      cursor: pointer;
+    }
+
+    .btn-small:active { background: #fff; color: #000; }
+
     .hint {
       font-size: 0.5rem;
       color: #aaa;
@@ -144,6 +158,7 @@
     </div>
 
     <button id="motion-btn" class="btn">ENABLE MOTION</button>
+    <button id="recentre-btn" class="btn-small hidden">RECENTRE</button>
     <p id="hint" class="hint">TILT TO MOVE<br>OR DRAG IN THE BOX</p>
 
     <div id="pad">

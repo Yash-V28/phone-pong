@@ -8,7 +8,8 @@
 
 (() => {
   const SEND_INTERVAL_MS = 33; // ~30 updates per second
-  const TILT_RANGE = 45;       // tilt clamped to ±45° around the calibrated centre
+  const TILT_RANGE = 37.5;     // tilt clamped to ±37.5° around the calibrated centre
+                               // (halfway between the old ±30° and the too-sluggish ±45°)
   const DEAD_ZONE = 2;         // degrees around the centre that count as "centre"
   const TILT_SMOOTHING = 0.2;  // low-pass filter weight for each new reading (0..1)
   const ROOM_FULL_RETRY_MS = 3000;
@@ -19,6 +20,7 @@
   const p1El = document.getElementById("score-p1");
   const p2El = document.getElementById("score-p2");
   const motionBtn = document.getElementById("motion-btn");
+  const recentreBtn = document.getElementById("recentre-btn");
   const hintEl = document.getElementById("hint");
   const pad = document.getElementById("pad");
   const paddleEl = document.getElementById("paddle");
@@ -143,7 +145,7 @@
     const magnitude = Math.max(0, Math.abs(smoothTilt) - DEAD_ZONE);
     const range = TILT_RANGE - DEAD_ZONE;
     const beta = clamp(Math.sign(smoothTilt) * magnitude, -range, range);
-    setY((beta + range) / (2 * range)); // -45° -> 0 (top), +45° -> 1 (bottom)
+    setY((beta + range) / (2 * range)); // -range -> 0 (top), +range -> 1 (bottom)
   }
 
   function startMotion() {
@@ -152,6 +154,7 @@
     motionBtn.textContent = "MOTION ON";
     motionBtn.disabled = true;
     hintEl.textContent = "TILT TO MOVE";
+    recentreBtn.classList.remove("hidden");
     // Desktop browsers / insecure (http) pages often never fire the event.
     setTimeout(() => {
       if (!motionSeen) {
@@ -184,6 +187,12 @@
       }
     }
     startMotion();
+  });
+
+  // RECENTRE: forget the centre so the next orientation reading becomes the new one
+  // (same calibration as when ENABLE MOTION was tapped).
+  recentreBtn.addEventListener("click", () => {
+    centreBeta = null;
   });
 
   // ---- Touch / drag fallback (pointer events also cover mouse for desktop testing) ----
