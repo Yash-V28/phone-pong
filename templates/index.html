@@ -760,6 +760,52 @@
       else if (ball.vx > 0 && ball.x + BALL >= paddleX(2)) { ball.x = paddleX(2) - BALL; demoLaunch(-1); }
     }
 
+    // ---- Co-op bots (BLUE team) ----
+    // Bots re-think only every `reaction` seconds (a short delay), aim at where the ball
+    // will cross their bat plus a random `error` (px), and move at most `speed` of the
+    // table height per second, so they're beatable. They add a little random spin.
+    const BOT_LEVELS = {
+      easy: { speed: 0.9, error: 55, reaction: 0.3, spin: 0.25 },
+      hard: { speed: 1.5, error: 28, reaction: 0.15, spin: 0.5 },
+    };
+    const botBrains = { 2: { timer: 0, aim: 0.5, twist: 0 }, 4: { timer: 0, aim: 0.5, twist: 0 } };
+
+    // Where will the ball's centre be (y) when it reaches x? Straight line, bouncing off
+    // the table sides. Spin is ignored, so a curving ball can fool the bots.
+    function predictBallY(x) {
+      const cy = ball.y + BALL / 2;
+      const t = ball.vx ? (x - (ball.x + BALL / 2)) / ball.vx : -1;
+      if (t <= 0) return cy;
+      const lo = BALL / 2, span = H - BALL;
+      let r = (cy + ball.vy * t - lo) % (2 * span);
+      if (r < 0) r += 2 * span;
+      return lo + (r > span ? 2 * span - r : r); // fold the bounces back onto the table
+    }
+
+    function updateBots(dt) {
+      const level = BOT_LEVELS[difficulty] || BOT_LEVELS.easy;
+      for (const b of bats) {
+        if (!b.bot) continue;
+        const brain = botBrains[b.id];
+        brain.timer -= dt;
+        if (brain.timer <= 0) {
+          brain.timer = level.reaction;
+          if (phase === "play" && ball.vx > 0) {
+            // Ball heading our way: go to its predicted crossing point (with error).
+            const y = predictBallY(paddleX(b.id)) + (Math.random() * 2 - 1) * level.error;
+            brain.aim = Math.min(1, Math.max(0, (y - PADDLE_H / 2) / (H - PADDLE_H)));
+          } else {
+            brain.aim = 0.5; // otherwise drift back to the middle
+          }
+          brain.twist = (Math.random() * 2 - 1) * level.spin;
+        }
+        // Capped speed: step the target towards the aim, never jump.
+        const p = paddles[b.id], maxStep = level.speed * dt;
+        p.target += Math.max(-maxStep, Math.min(maxStep, brain.aim - p.target));
+        p.twist = brain.twist;
+      }
+    }
+
     // Keyboard: W/S moves P1; the arrows move P2 (P3 in co-op, where P2 is a bot).
     const arrowsPlayer = () => (mode === "coop" ? 3 : 2);
 
@@ -775,6 +821,7 @@
       const p2 = paddles[arrowsPlayer()];
       paddles[1].target = Math.min(1, Math.max(0, paddles[1].target + dir1 * KEY_SPEED * dt));
       p2.target = Math.min(1, Math.max(0, p2.target + dir2 * KEY_SPEED * dt));
+      if (mode === "coop") updateBots(dt);
 
       // Ease towards the target (lerp 0.25 per 60 fps frame, scaled for other
       // frame rates) so ~30 Hz phone updates look smooth instead of jumping.
