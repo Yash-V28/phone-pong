@@ -324,7 +324,8 @@
   (() => {
     // ---- Constants (canvas units) ----
     const W = 800, H = 500;
-    const PADDLE_W = 12, PADDLE_H = 80, PADDLE_MARGIN = 24;
+    const PADDLE_W = 12, PADDLE_MARGIN = 24;
+    let PADDLE_H = 80;         // co-op EASY/HARD override it (see BOT_LEVELS)
     const BALL = 12;
     const START_SPEED = 380;   // px per second
     const SPEED_UP = 1.06;     // multiplier on every paddle hit
@@ -615,7 +616,10 @@
       ball.x = (W - BALL) / 2;
       ball.y = (H - BALL) / 2;
       ball.vx = ball.vy = 0;
-      ball.speed = START_SPEED;
+      // Co-op uses the difficulty's ball speed, speed-up and paddle size; 1v1/2v2 the defaults.
+      const level = mode === "coop" ? BOT_LEVELS[difficulty] || BOT_LEVELS.easy : null;
+      PADDLE_H = level ? level.paddleH : 80;
+      ball.speed = level ? level.ballSpeed : START_SPEED;
       ball.smash = false;
       ball.spin = 0;
       rally = 0;
@@ -693,7 +697,8 @@
       rel = Math.max(-1, Math.min(1, rel));
       const angle = rel * MAX_BOUNCE;
       // Each hit in a rally speeds the ball up a little (capped at MAX_SPEED).
-      ball.speed = Math.min(MAX_SPEED, ball.speed * SPEED_UP);
+      const speedUp = mode === "coop" ? (BOT_LEVELS[difficulty] || BOT_LEVELS.easy).speedUp : SPEED_UP;
+      ball.speed = Math.min(MAX_SPEED, ball.speed * speedUp);
       rally++;
       // Smash if this player shook their phone just before the ball arrived.
       // Only this shot is boosted: the next hit uses the normal ball.speed again.
@@ -789,9 +794,10 @@
     // Bots re-think only every `reaction` seconds (a short delay), aim at where the ball
     // will cross their bat plus a random `error` (px), and move at most `speed` of the
     // table height per second, so they're beatable. They add a little random spin.
+    // ballSpeed (px/s at serve), speedUp (per hit) and paddleH (px) set the co-op table.
     const BOT_LEVELS = {
-      easy: { speed: 0.9, error: 55, reaction: 0.3, spin: 0.25 },
-      hard: { speed: 1.5, error: 28, reaction: 0.15, spin: 0.5 },
+      easy: { speed: 0.6, error: 90, reaction: 0.45, spin: 0.15, ballSpeed: 260, speedUp: 1.02, paddleH: 120 },
+      hard: { speed: 1.25, error: 40, reaction: 0.2, spin: 0.4, ballSpeed: 340, speedUp: 1.045, paddleH: 95 },
     };
     const botBrains = { 2: { timer: 0, aim: 0.5, twist: 0 }, 4: { timer: 0, aim: 0.5, twist: 0 } };
 
