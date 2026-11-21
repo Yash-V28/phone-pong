@@ -123,7 +123,10 @@
 
     /* In-game buttons along the bottom, where a thumb reaches while holding the phone */
     .controls .pick { min-height: 4rem; font-size: clamp(0.7rem, 3.8vw, 0.95rem); }
-    #pause-btn.on { background: #ffd166; color: #000; border-color: #fff; }
+
+    /* PAUSED: mirrors the host's pause menu */
+    #pause-panel { flex: 1; justify-content: center; text-align: center; }
+    #pause-title { font-size: clamp(1.6rem, 9vw, 2.4rem); color: #ffd166; text-shadow: 4px 4px 0 #000; margin: 0 0 1rem; animation: blink 1s steps(1) infinite; }
 
     /* Touch fallback: drag up/down anywhere in this box. */
     #pad {
@@ -266,6 +269,13 @@
         <button id="recentre-btn" class="pick hidden">RECENTRE</button>
         <button id="pause-btn" class="pick">PAUSE</button>
       </div>
+    </section>
+
+    <!-- Match paused (from any phone or the host): any phone can resume or end it -->
+    <section id="pause-panel" class="panel hidden">
+      <p id="pause-title">PAUSED</p>
+      <button id="resume-btn" class="btn big">RESUME</button>
+      <button id="menu-btn" class="pick">BACK TO MENU</button>
     </section>
 
     <!-- After a match: everyone can ask for a rematch; only the captain can change mode -->

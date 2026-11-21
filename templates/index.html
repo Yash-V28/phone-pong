@@ -393,7 +393,6 @@
     let rally = 0;             // bat hits since the last serve
     const smashAt = { 1: -Infinity, 2: -Infinity, 3: -Infinity, 4: -Infinity }; // last phone shake (s)
     let serveTimer = 0, serveDir = 1;
-    let pausedBy = null;       // player number who tapped PAUSE on their phone, or null
     let hostPaused = false;    // PAUSE menu open on the host (P / Esc / PAUSE button)
     const keys = new Set();
 
@@ -469,23 +468,22 @@
       else if (phase === "paused" && lobbyReady()) serve(serveDir);
     });
 
-    // PAUSE on any phone freezes the match for everyone; PAUSE again (any phone) resumes.
-    function togglePause(player) {
-      if (pausedBy !== null) pausedBy = null;
-      else if (phase === "serve" || phase === "play") pausedBy = player;
-      else return;
-      socket.emit("paused", { room: roomCode, by: pausedBy || 0 });
-    }
-    socket.on("pause", ({ player }) => togglePause(player));
-
-    // Host PAUSE menu: freezes the match until RESUME (or P / Esc again).
-    function setHostPause(on) {
+    // PAUSE menu (P / Esc / PAUSE button here, or PAUSE on any phone): freezes the match
+    // until RESUME. Phones mirror it with their own RESUME / BACK TO MENU (by: 0 = host).
+    function setHostPause(on, by = 0) {
       if (on && !["serve", "play", "paused"].includes(phase)) return; // only mid-match
+      if (on === hostPaused) return;
       hostPaused = on;
       keys.clear();
       $("pause-menu").classList.toggle("hidden", !on);
       if (on) $("resume-btn").focus();
+      socket.emit("pause_state", { room: roomCode, paused: on, by });
     }
+    socket.on("pause_menu", ({ player, action }) => {
+      if (action === "pause") setHostPause(true, player);
+      else if (action === "resume") setHostPause(false);
+      else if (action === "menu" && hostPaused) backToLobby();
+    });
 
     // Captain's phone tapped CHANGE MODE on the win screen.
     socket.on("change_mode", ({ player }) => {
@@ -605,7 +603,6 @@
 
     // Back to the lobby (not enough players for a rematch, or the captain wants a new mode).
     function backToLobby() {
-      pausedBy = null;
       setHostPause(false);
       overlay.classList.add("hidden");
       phase = "lobby";
@@ -625,7 +622,6 @@
 
     // ---- Game flow ----
     function startMatch() {
-      pausedBy = null;
       setupBats();
       score.red = 0; score.blue = 0;
       emitScore();
@@ -670,7 +666,6 @@
       sfx.point();
       if (score[team] >= WIN_SCORE) {
         phase = "over";
-        pausedBy = null;
         const label = winLabel(team);
         $("winner").textContent = label;
         $("winner").className = team;
@@ -865,7 +860,7 @@
     }
 
     function update(dt) {
-      if (pausedBy !== null || hostPaused) return; // frozen until PAUSE is tapped again / RESUME
+      if (hostPaused) return; // frozen until RESUME
 
       // Keyboard fallback
       const dir1 = (keys.has("s") ? 1 : 0) - (keys.has("w") ? 1 : 0);
@@ -1492,22 +1487,6 @@
       drawPopText(now, k);
       drawRally(k);
       if (phase === "over") drawConfetti(dt);
-
-      // Shared box with two lines of crisp text in the middle of the table.
-      const messageBox = (line1, line2) => {
-        ctx.fillStyle = "rgba(20, 14, 20, 0.88)";
-        ctx.fillRect(canvas.width / 2 - 130 * k, canvas.height / 2 - 26 * k, 260 * k, 52 * k);
-        ctx.fillStyle = COL.line;
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
-        ctx.font = `${Math.round(8 * k)}px "Press Start 2P", monospace`;
-        ctx.fillText(line1, canvas.width / 2, canvas.height / 2 - 8 * k);
-        ctx.font = `${Math.round(6 * k)}px "Press Start 2P", monospace`;
-        ctx.fillText(line2, canvas.width / 2, canvas.height / 2 + 10 * k);
-      };
-      if (pausedBy !== null && phase !== "paused") {
-        messageBox(`PAUSED BY P${pausedBy}`, "TAP PAUSE ON A PHONE TO RESUME");
-      }
 
       if (phase === "paused") {
         // Text is drawn at full resolution so Press Start 2P stays sharp.

@@ -13,7 +13,8 @@
 //   on    smash_landed           (our smash hit the ball: flash the screen)
 //   on    hit    {type}          ("hit": our bat struck the ball, "concede": we lost a point)
 //   on    game_over {winner: "red"|"blue", label} / match_start   (show / hide REMATCH)
-//   emit  pause {room}  (PAUSE / RESUME; the host toggles)  -> on paused {by} (0 = resumed)
+//   emit  pause_menu {room, action: "pause"|"resume"|"menu"}  (PAUSE, then RESUME / BACK TO MENU)
+//   on    pause_state {paused, by}   (host's pause menu opened/closed; by 0 = the host itself)
 //   emit  change_mode {room}   (captain only, after a match: back to the lobby)
 
 (() => {
@@ -59,6 +60,7 @@
   const lobbyInfoEl = document.getElementById("lobby-info");
   const overPanel = document.getElementById("over-panel");
   const pauseBtn = document.getElementById("pause-btn");
+  const pausePanel = document.getElementById("pause-panel");
   const changeModeBtn = document.getElementById("change-mode-btn");
 
   const room = (new URLSearchParams(location.search).get("room") || "").trim();
@@ -68,7 +70,7 @@
   let players = [];      // player numbers in the room
   let roomState = "lobby"; // "lobby" | "game"
   let gameOver = false;
-  let pausedBy = 0;      // player who paused the match (0 = running)
+  let paused = false;    // host's pause menu is open
   let y = 0.5;           // current paddle position
   let dragging = false;  // finger on the pad overrides tilt
   let twistSpin = 0;     // -1..1 from rolling the phone left/right
@@ -93,11 +95,10 @@
     modeLabelEl.textContent = MODE_NAMES[mode];
     const inLobby = player && roomState === "lobby";
     lobbyPanel.classList.toggle("hidden", !inLobby);
-    gamePanel.classList.toggle("hidden", !player || roomState !== "game" || gameOver);
+    gamePanel.classList.toggle("hidden", !player || roomState !== "game" || gameOver || paused);
+    pausePanel.classList.toggle("hidden", !player || roomState !== "game" || gameOver || !paused);
     overPanel.classList.toggle("hidden", !player || !gameOver);
     changeModeBtn.classList.toggle("hidden", player !== 1);
-    pauseBtn.textContent = pausedBy ? "RESUME" : "PAUSE";
-    pauseBtn.classList.toggle("on", !!pausedBy);
     captainControls.classList.toggle("hidden", player !== 1);
     difficultyRow.classList.toggle("hidden", mode !== "coop");
     for (const b of document.querySelectorAll("[data-mode]")) b.classList.toggle("on", b.dataset.mode === mode);
@@ -199,7 +200,7 @@
     if (st.difficulty) difficulty = st.difficulty;
     if (st.state !== roomState) {
       roomState = st.state;
-      if (roomState === "lobby") { gameOver = false; pausedBy = 0; showIdentity(); }
+      if (roomState === "lobby") { gameOver = false; paused = false; showIdentity(); }
     }
     render();
   });
@@ -234,25 +235,28 @@
   socket.on("game_over", (data) => {
     const winner = data && data.winner;
     gameOver = true;
-    pausedBy = 0;
+    paused = false;
     setStatus(winner === TEAM_OF[player] ? "YOU WIN!" : (data.label || "GAME OVER"), true);
     render();
   });
 
   socket.on("match_start", () => {
     gameOver = false;
-    pausedBy = 0;
+    paused = false;
     roomState = "game";
     showIdentity();
     render();
   });
 
-  // PAUSE / RESUME: any phone can pause for everyone; tapping again resumes.
-  pauseBtn.addEventListener("click", () => { if (socket.connected) socket.emit("pause", { room }); });
+  // PAUSE opens the host's pause menu for everyone; any phone can RESUME or go BACK TO MENU.
+  const pauseMenu = (action) => { if (socket.connected) socket.emit("pause_menu", { room, action }); };
+  pauseBtn.addEventListener("click", () => pauseMenu("pause"));
+  document.getElementById("resume-btn").addEventListener("click", () => pauseMenu("resume"));
+  document.getElementById("menu-btn").addEventListener("click", () => pauseMenu("menu"));
 
-  socket.on("paused", (data) => {
-    pausedBy = (data && data.by) || 0;
-    if (pausedBy) setStatus(`PAUSED BY P${pausedBy}`, true, "#ffd166");
+  socket.on("pause_state", (data) => {
+    paused = !!(data && data.paused);
+    if (paused) setStatus(data.by ? `PAUSED BY P${data.by}` : "GAME PAUSED", true, "#ffd166");
     else showIdentity();
     render();
   });
