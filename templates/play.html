@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#000000">
+  <title>Phone Pong - Controller</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      height: 100%;
+      background: #000;
+      color: #fff;
+      font-family: "Press Start 2P", monospace;
+      overflow: hidden;
+      overscroll-behavior: none;
+      -webkit-user-select: none;
+      user-select: none;
+      -webkit-touch-callout: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .controller {
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      gap: 1rem;
+      padding: max(1rem, env(safe-area-inset-top)) 1rem max(1rem, env(safe-area-inset-bottom));
+      text-align: center;
+    }
+
+    .room {
+      font-size: 0.6rem;
+      color: #aaa;
+      letter-spacing: 0.1em;
+    }
+
+    #status {
+      font-size: clamp(0.9rem, 5vw, 1.4rem);
+      line-height: 1.6;
+      text-shadow: 3px 3px 0 #444;
+    }
+
+    #status.blink { animation: blink 1s steps(1) infinite; }
+
+    .score {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 1.5rem;
+      font-size: clamp(1.2rem, 7vw, 2rem);
+    }
+
+    .score .label { display: block; font-size: 0.5rem; color: #aaa; margin-bottom: 0.5rem; }
+    .score .mine { text-decoration: underline; text-underline-offset: 0.4em; }
+
+    .hidden { display: none !important; }
+
+    .btn {
+      font-family: inherit;
+      font-size: clamp(0.8rem, 4vw, 1rem);
+      color: #fff;
+      background: #000;
+      border: 4px solid #fff;
+      padding: 1rem;
+      cursor: pointer;
+      animation: blink 1s steps(1) infinite;
+    }
+
+    .btn:active, .btn:focus-visible {
+      background: #fff;
+      color: #000;
+      animation: none;
+      outline: none;
+    }
+
+    .btn:disabled { animation: none; opacity: 0.5; }
+
+    .hint {
+      font-size: 0.5rem;
+      color: #aaa;
+      line-height: 2;
+    }
+
+    /* Touch fallback: drag up/down anywhere in this box. */
+    #pad {
+      position: relative;
+      flex: 1;
+      min-height: 8rem;
+      border: 4px solid #fff;
+      touch-action: none;
+    }
+
+    #pad .label {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.55rem;
+      color: #444;
+      pointer-events: none;
+    }
+
+    #paddle {
+      position: absolute;
+      left: 50%;
+      width: 14px;
+      height: 25%;
+      margin-left: -7px;
+      background: #fff;
+      top: 37.5%; /* (100% - 25%) * 0.5 */
+      pointer-events: none;
+    }
+
+    @keyframes blink { 50% { opacity: 0.3; } }
+
+    /* Faint CRT scanlines, matching the home screen */
+    body::after {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background: repeating-linear-gradient(
+        to bottom, rgba(255,255,255,0.03) 0 2px, transparent 2px 4px
+      );
+    }
+  </style>
+</head>
+<body>
+  <main class="controller">
+    <p class="room">ROOM <span id="room-code">----</span></p>
+    <h1 id="status" class="blink">CONNECTING...</h1>
+
+    <div id="score" class="score hidden">
+      <div><span class="label">P1</span><span id="score-p1">0</span></div>
+      <div>-</div>
+      <div><span class="label">P2</span><span id="score-p2">0</span></div>
+    </div>
+
+    <button id="motion-btn" class="btn">ENABLE MOTION</button>
+    <p id="hint" class="hint">TILT TO MOVE<br>OR DRAG IN THE BOX</p>
+
+    <div id="pad">
+      <div class="label">DRAG UP / DOWN</div>
+      <div id="paddle"></div>
+    </div>
+  </main>
+
+  <!-- Socket.IO JS client v4 matches Flask-SocketIO 5.x -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js"></script>
+  <script src="{{ url_for('static', filename='controller.js') }}"></script>
+</body>
+</html>

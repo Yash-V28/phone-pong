@@ -19,6 +19,12 @@ def index():
     return render_template("index.html")
 
 
+@app.route("/play")
+def play():
+    """Phone controller. The room code is read client-side from ?room=CODE."""
+    return render_template("play.html")
+
+
 @socketio.on("connect")
 def handle_connect():
     print("Client connected")
