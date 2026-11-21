@@ -11,6 +11,9 @@ Socket.IO contract:
   phone/host -> server: set_mode {room, mode, difficulty}  (captain P1 or host, lobby only)
   phone -> server: start_game {room}      (captain tapped START; host decides)
   host  -> server: lobby_open {room}      (host is back in the lobby: modes can change)
+  phone -> server: pause {room}           (PAUSE / RESUME tapped; host toggles)
+  phone -> server: change_mode {room}     (captain tapped CHANGE MODE after a match)
+  host  -> server: paused {room, by}      (by = player who paused, 0 = resumed)
   phone -> server: paddle {room, y, spin} (y: 0 top .. 1 bottom, spin: -1..1 twist)
   phone -> server: smash {room}           (player shook the phone)
   phone -> server: rematch {room}         (REMATCH tapped after a match)
@@ -24,9 +27,10 @@ Socket.IO contract:
   server -> host + phones: room_state {players: [1, 3], mode, difficulty, state: "lobby"|"game"}
                    (sent on every join / leave / mode change; replaces player_joined/left)
   server -> host:  paddle {player, y, spin}, smash {player}, rematch {player},
-                   latency {player, ms}, start_game {player}
+                   latency {player, ms}, start_game {player}, pause {player},
+                   change_mode {player}
   server -> phones: score {p1, p2} (p1 = RED team, p2 = BLUE team), game_over {winner, label},
-                   match_start {}
+                   match_start {}, paused {by}
   server -> one phone: smash_landed {}, hit {type}
 """
 import os
@@ -326,6 +330,23 @@ def host_to_phones(data, event, payload=None):
         if not room or room["host"] != request.sid:
             return  # only the host may send these
     socketio.emit(event, payload or {}, to=phones_channel(code))
+
+
+@socketio.on("pause")
+def handle_pause(data):
+    phone_to_host(data, "pause")
+
+
+@socketio.on("change_mode")
+def handle_change_mode(data):
+    phone_to_host(data, "change_mode")  # host only accepts it from P1 (the captain)
+
+
+@socketio.on("paused")
+def handle_paused(data):
+    by = data.get("by") if isinstance(data, dict) else None
+    if by in (0, 1, 2, 3, 4):
+        host_to_phones(data, "paused", {"by": by})
 
 
 @socketio.on("game_over")

@@ -65,12 +65,15 @@
 
     .btn {
       font-family: inherit;
-      font-size: clamp(0.8rem, 4vw, 1rem);
+      font-size: clamp(0.8rem, 4.2vw, 1.1rem);
       color: #fff;
       background: #000;
       border: 4px solid #fff;
+      box-shadow: 4px 4px 0 #333;
+      min-height: 3.75rem;
       padding: 1rem;
       cursor: pointer;
+      touch-action: manipulation;
       animation: blink 1s steps(1) infinite;
     }
 
@@ -83,19 +86,6 @@
 
     .btn:disabled { animation: none; opacity: 0.5; }
 
-    /* Small secondary button (RECENTRE), no blinking. */
-    .btn-small {
-      font-family: inherit;
-      font-size: 0.6rem;
-      color: #fff;
-      background: #000;
-      border: 3px solid #aaa;
-      padding: 0.6rem;
-      align-self: center;
-      cursor: pointer;
-    }
-
-    .btn-small:active { background: #fff; color: #000; }
 
     .hint {
       font-size: 0.5rem;
@@ -130,6 +120,10 @@
     .pick:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0 #333; }
 
     .btn.big { font-size: clamp(1.1rem, 6vw, 1.5rem); min-height: 4.5rem; background: #23807a; }
+
+    /* In-game buttons along the bottom, where a thumb reaches while holding the phone */
+    .controls .pick { min-height: 4rem; font-size: clamp(0.7rem, 3.8vw, 0.95rem); }
+    #pause-btn.on { background: #ffd166; color: #000; border-color: #fff; }
 
     /* Touch fallback: drag up/down anywhere in this box. */
     #pad {
@@ -237,10 +231,8 @@
     </div>
 
     <button id="motion-btn" class="btn">ENABLE MOTION</button>
-    <button id="recentre-btn" class="btn-small hidden">RECENTRE</button>
     <p id="hint" class="hint">TILT TO MOVE<br>OR DRAG IN THE BOX</p>
     <p id="smash-hint" class="smash-hint hidden">SHAKE TO SMASH!</p>
-    <button id="rematch-btn" class="btn hidden">REMATCH</button>
 
     <!-- Lobby: only the captain (P1) gets the mode buttons and START -->
     <section id="lobby-panel" class="panel hidden">
@@ -269,6 +261,17 @@
         <div class="label">DRAG UP / DOWN<br><br>SIDEWAYS = SPIN</div>
         <div id="paddle"></div>
       </div>
+
+      <div class="btn-grid controls">
+        <button id="recentre-btn" class="pick hidden">RECENTRE</button>
+        <button id="pause-btn" class="pick">PAUSE</button>
+      </div>
+    </section>
+
+    <!-- After a match: everyone can ask for a rematch; only the captain can change mode -->
+    <section id="over-panel" class="panel hidden">
+      <button id="rematch-btn" class="btn big">REMATCH</button>
+      <button id="change-mode-btn" class="pick hidden">CHANGE MODE</button>
     </section>
   </main>
   <div id="flash"></div>

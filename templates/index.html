@@ -215,7 +215,7 @@
     }
     #winner.red { color: var(--red); }
     #winner.blue { color: var(--blue); }
-    #overlay .btn, #overlay .hint { position: relative; }
+    #overlay .btn, #overlay .hint, #overlay .mode-btn { position: relative; }
 
     /* Low-res canvas scaled up, so the confetti is chunky pixels. */
     #confetti {
@@ -310,7 +310,8 @@
       <canvas id="confetti" width="200" height="125"></canvas>
       <p id="winner">PLAYER 1 WINS</p>
       <button id="again-btn" class="btn">REMATCH</button>
-      <p class="hint">OR TAP REMATCH ON A PHONE</p>
+      <button id="change-mode-btn" class="mode-btn">CHANGE MODE</button>
+      <p class="hint">OR TAP REMATCH / CHANGE MODE ON A PHONE</p>
     </div>
   </section>
 
@@ -378,6 +379,7 @@
     let rally = 0;             // bat hits since the last serve
     const smashAt = { 1: -Infinity, 2: -Infinity, 3: -Infinity, 4: -Infinity }; // last phone shake (s)
     let serveTimer = 0, serveDir = 1;
+    let pausedBy = null;       // player number who tapped PAUSE on their phone, or null
     const keys = new Set();
 
     function show(name) {
@@ -450,6 +452,20 @@
       // Someone needed dropped out mid-match: pause until they rejoin.
       if (!keyboardMode && (phase === "serve" || phase === "play") && !lobbyReady()) phase = "paused";
       else if (phase === "paused" && lobbyReady()) serve(serveDir);
+    });
+
+    // PAUSE on any phone freezes the match for everyone; PAUSE again (any phone) resumes.
+    function togglePause(player) {
+      if (pausedBy !== null) pausedBy = null;
+      else if (phase === "serve" || phase === "play") pausedBy = player;
+      else return;
+      socket.emit("paused", { room: roomCode, by: pausedBy || 0 });
+    }
+    socket.on("pause", ({ player }) => togglePause(player));
+
+    // Captain's phone tapped CHANGE MODE on the win screen.
+    socket.on("change_mode", ({ player }) => {
+      if (player === 1 && phase === "over") backToLobby();
     });
 
     // Captain's phone tapped START.
@@ -565,6 +581,7 @@
 
     // Back to the lobby (not enough players for a rematch, or the captain wants a new mode).
     function backToLobby() {
+      pausedBy = null;
       overlay.classList.add("hidden");
       phase = "lobby";
       socket.emit("lobby_open", { room: roomCode });
@@ -583,6 +600,7 @@
 
     // ---- Game flow ----
     function startMatch() {
+      pausedBy = null;
       setupBats();
       score.red = 0; score.blue = 0;
       emitScore();
@@ -627,6 +645,7 @@
       sfx.point();
       if (score[team] >= WIN_SCORE) {
         phase = "over";
+        pausedBy = null;
         const label = winLabel(team);
         $("winner").textContent = label;
         $("winner").className = team;
@@ -821,6 +840,8 @@
     }
 
     function update(dt) {
+      if (pausedBy !== null) return; // frozen until a phone taps PAUSE again
+
       // Keyboard fallback
       const dir1 = (keys.has("s") ? 1 : 0) - (keys.has("w") ? 1 : 0);
       const dir2 = (keys.has("ArrowDown") ? 1 : 0) - (keys.has("ArrowUp") ? 1 : 0);
@@ -1447,6 +1468,22 @@
       drawRally(k);
       if (phase === "over") drawConfetti(dt);
 
+      // Shared box with two lines of crisp text in the middle of the table.
+      const messageBox = (line1, line2) => {
+        ctx.fillStyle = "rgba(20, 14, 20, 0.88)";
+        ctx.fillRect(canvas.width / 2 - 130 * k, canvas.height / 2 - 26 * k, 260 * k, 52 * k);
+        ctx.fillStyle = COL.line;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.font = `${Math.round(8 * k)}px "Press Start 2P", monospace`;
+        ctx.fillText(line1, canvas.width / 2, canvas.height / 2 - 8 * k);
+        ctx.font = `${Math.round(6 * k)}px "Press Start 2P", monospace`;
+        ctx.fillText(line2, canvas.width / 2, canvas.height / 2 + 10 * k);
+      };
+      if (pausedBy !== null && phase !== "paused") {
+        messageBox(`PAUSED BY P${pausedBy}`, "TAP PAUSE ON A PHONE TO RESUME");
+      }
+
       if (phase === "paused") {
         // Text is drawn at full resolution so Press Start 2P stays sharp.
         const missing = MODE_PLAYERS[mode].filter((p) => !joined[p]);
@@ -1505,6 +1542,7 @@
 
     $("start-btn").addEventListener("click", openLobby);
     $("again-btn").addEventListener("click", playAgain);
+    $("change-mode-btn").addEventListener("click", backToLobby);
     $("lobby-start").addEventListener("click", () => { initAudio(); if (lobbyReady()) startMatch(); });
     for (const btn of document.querySelectorAll("[data-mode]")) {
       btn.addEventListener("click", () => chooseMode(btn.dataset.mode, difficulty));

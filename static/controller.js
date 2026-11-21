@@ -13,6 +13,8 @@
 //   on    smash_landed           (our smash hit the ball: flash the screen)
 //   on    hit    {type}          ("hit": our bat struck the ball, "concede": we lost a point)
 //   on    game_over {winner: "red"|"blue", label} / match_start   (show / hide REMATCH)
+//   emit  pause {room}  (PAUSE / RESUME; the host toggles)  -> on paused {by} (0 = resumed)
+//   emit  change_mode {room}   (captain only, after a match: back to the lobby)
 
 (() => {
   const SEND_INTERVAL_MS = 33; // ~30 updates per second
@@ -55,6 +57,9 @@
   const difficultyRow = document.getElementById("difficulty-row");
   const startBtn = document.getElementById("start-btn");
   const lobbyInfoEl = document.getElementById("lobby-info");
+  const overPanel = document.getElementById("over-panel");
+  const pauseBtn = document.getElementById("pause-btn");
+  const changeModeBtn = document.getElementById("change-mode-btn");
 
   const room = (new URLSearchParams(location.search).get("room") || "").trim();
 
@@ -63,6 +68,7 @@
   let players = [];      // player numbers in the room
   let roomState = "lobby"; // "lobby" | "game"
   let gameOver = false;
+  let pausedBy = 0;      // player who paused the match (0 = running)
   let y = 0.5;           // current paddle position
   let dragging = false;  // finger on the pad overrides tilt
   let twistSpin = 0;     // -1..1 from rolling the phone left/right
@@ -88,6 +94,10 @@
     const inLobby = player && roomState === "lobby";
     lobbyPanel.classList.toggle("hidden", !inLobby);
     gamePanel.classList.toggle("hidden", !player || roomState !== "game" || gameOver);
+    overPanel.classList.toggle("hidden", !player || !gameOver);
+    changeModeBtn.classList.toggle("hidden", player !== 1);
+    pauseBtn.textContent = pausedBy ? "RESUME" : "PAUSE";
+    pauseBtn.classList.toggle("on", !!pausedBy);
     captainControls.classList.toggle("hidden", player !== 1);
     difficultyRow.classList.toggle("hidden", mode !== "coop");
     for (const b of document.querySelectorAll("[data-mode]")) b.classList.toggle("on", b.dataset.mode === mode);
@@ -189,7 +199,7 @@
     if (st.difficulty) difficulty = st.difficulty;
     if (st.state !== roomState) {
       roomState = st.state;
-      if (roomState === "lobby") { gameOver = false; rematchBtn.classList.add("hidden"); showIdentity(); }
+      if (roomState === "lobby") { gameOver = false; pausedBy = 0; showIdentity(); }
     }
     render();
   });
@@ -224,18 +234,30 @@
   socket.on("game_over", (data) => {
     const winner = data && data.winner;
     gameOver = true;
+    pausedBy = 0;
     setStatus(winner === TEAM_OF[player] ? "YOU WIN!" : (data.label || "GAME OVER"), true);
-    rematchBtn.classList.remove("hidden");
     render();
   });
 
   socket.on("match_start", () => {
     gameOver = false;
+    pausedBy = 0;
     roomState = "game";
     showIdentity();
-    rematchBtn.classList.add("hidden");
     render();
   });
+
+  // PAUSE / RESUME: any phone can pause for everyone; tapping again resumes.
+  pauseBtn.addEventListener("click", () => { if (socket.connected) socket.emit("pause", { room }); });
+
+  socket.on("paused", (data) => {
+    pausedBy = (data && data.by) || 0;
+    if (pausedBy) setStatus(`PAUSED BY P${pausedBy}`, true, "#ffd166");
+    else showIdentity();
+    render();
+  });
+
+  changeModeBtn.addEventListener("click", () => { if (socket.connected) socket.emit("change_mode", { room }); });
 
   rematchBtn.addEventListener("click", () => {
     if (socket.connected) socket.emit("rematch", { room });
