@@ -7,13 +7,15 @@ Socket.IO contract:
                   (id + last player number let a rejoining phone reclaim its slot)
   phone -> server: paddle {room, y}       (y: 0 top .. 1 bottom)
   phone -> server: smash {room}           (player shook the phone)
+  phone -> server: rematch {room}         (REMATCH tapped after a match)
   host  -> server: create_room {room}
   host  -> server: score {room, p1, p2}
   host  -> server: smash_landed {room, player}
   host  -> server: hit {room, player, type: "hit"|"concede"}
+  host  -> server: game_over {room, winner}, match_start {room}
   server -> host:  player_joined {player}, player_left {player}, paddle {player, y},
-                   smash {player}
-  server -> phones: score {p1, p2}
+                   smash {player}, rematch {player}
+  server -> phones: score {p1, p2}, game_over {winner}, match_start {}
   server -> one phone: smash_landed {}, hit {type}
 """
 import os
@@ -183,6 +185,35 @@ def handle_hit(data):
     kind = data.get("type") if isinstance(data, dict) else None
     if kind in ("hit", "concede"):
         host_to_phone(data, "hit", {"type": kind})
+
+
+@socketio.on("rematch")
+def handle_rematch(data):
+    phone_to_host(data, "rematch")
+
+
+def host_to_phones(data, event, payload=None):
+    """Forward a host event to every phone in its room."""
+    code = normalise_code(data)
+    if not code:
+        return
+    with rooms_lock:
+        room = rooms.get(code)
+        if not room or room["host"] != request.sid:
+            return  # only the host may send these
+    socketio.emit(event, payload or {}, to=phones_channel(code))
+
+
+@socketio.on("game_over")
+def handle_game_over(data):
+    winner = data.get("winner") if isinstance(data, dict) else None
+    if winner in (1, 2):
+        host_to_phones(data, "game_over", {"winner": winner})
+
+
+@socketio.on("match_start")
+def handle_match_start(data):
+    host_to_phones(data, "match_start")
 
 
 @socketio.on("score")

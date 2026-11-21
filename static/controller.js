@@ -5,9 +5,11 @@
 //         (id + last player number let a rejoining phone reclaim its old slot)
 //   emit  paddle {room, y}
 //   emit  smash  {room}          (phone was shaken; 1 s cooldown)
+//   emit  rematch {room}         (REMATCH tapped on the game-over screen)
 //   on    score  {p1, p2}
 //   on    smash_landed           (our smash hit the ball: flash the screen)
 //   on    hit    {type}          ("hit": our bat struck the ball, "concede": we lost a point)
+//   on    game_over {winner} / match_start   (show / hide the REMATCH button)
 
 (() => {
   const SEND_INTERVAL_MS = 33; // ~30 updates per second
@@ -28,6 +30,7 @@
   const recentreBtn = document.getElementById("recentre-btn");
   const smashHintEl = document.getElementById("smash-hint");
   const flashEl = document.getElementById("flash");
+  const rematchBtn = document.getElementById("rematch-btn");
   const hintEl = document.getElementById("hint");
   const pad = document.getElementById("pad");
   const paddleEl = document.getElementById("paddle");
@@ -129,6 +132,22 @@
   });
 
   const PLAYER_COLOURS = { 1: "#e04848", 2: "#3f6fe6" };
+
+  // ---- Match flow ----
+  socket.on("game_over", (data) => {
+    const winner = data && data.winner;
+    setStatus(winner === player ? "YOU WIN!" : `PLAYER ${winner} WINS`, true);
+    rematchBtn.classList.remove("hidden");
+  });
+
+  socket.on("match_start", () => {
+    if (player) setStatus(`YOU ARE PLAYER ${player}`);
+    rematchBtn.classList.add("hidden");
+  });
+
+  rematchBtn.addEventListener("click", () => {
+    if (socket.connected) socket.emit("rematch", { room });
+  });
 
   // navigator.vibrate is missing on iPhones (and some browsers), hence the screen flash too.
   function vibrate(pattern) {
