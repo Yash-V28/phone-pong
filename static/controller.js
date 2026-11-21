@@ -7,7 +7,7 @@
 
 (() => {
   const SEND_INTERVAL_MS = 33; // ~30 updates per second
-  const TILT_RANGE = 30;       // beta clamped to [-30, 30] degrees
+  const TILT_RANGE = 30;       // tilt clamped to ±30° around the calibrated centre
 
   const statusEl = document.getElementById("status");
   const roomEl = document.getElementById("room-code");
@@ -89,15 +89,23 @@
 
   // ---- Tilt controls ----
   let motionSeen = false;
+  let centreBeta = null; // phone angle when ENABLE MOTION was tapped = paddle centre
 
   function onOrientation(e) {
-    if (dragging || e.beta == null) return;
-    const beta = clamp(e.beta, -TILT_RANGE, TILT_RANGE);
-    setY((beta + TILT_RANGE) / (2 * TILT_RANGE)); // -30 -> 0 (top), +30 -> 1 (bottom)
+    if (e.beta == null) return;
+    // Calibrate on the first reading after the tap, so however the player is
+    // holding the phone right now becomes the middle of the screen.
+    if (centreBeta === null) centreBeta = e.beta;
     motionSeen = true;
+    if (dragging) return;
+    // Wrap the difference into [-180, 180) in case it crosses the ±180 seam.
+    const tilt = ((e.beta - centreBeta + 540) % 360) - 180;
+    const beta = clamp(tilt, -TILT_RANGE, TILT_RANGE);
+    setY((beta + TILT_RANGE) / (2 * TILT_RANGE)); // -30 -> 0 (top), +30 -> 1 (bottom)
   }
 
   function startMotion() {
+    centreBeta = null;
     window.addEventListener("deviceorientation", onOrientation);
     motionBtn.textContent = "MOTION ON";
     motionBtn.disabled = true;
